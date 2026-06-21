@@ -20,6 +20,7 @@ mod services;
 pub struct AppState {
     pub db: db::Database,
     pub config: config::Config,
+    pub auth_service: services::auth::AuthService,
 }
 
 #[tokio::main]
@@ -37,7 +38,11 @@ async fn main() -> anyhow::Result<()> {
     let db = db::Database::new(&config.database_url).await?;
     db.run_migrations().await?;
 
-    let state = Arc::new(AppState { db, config });
+    let state = Arc::new(AppState {
+        db,
+        config: config.clone(),
+        auth_service: services::auth::AuthService::new(&config.jwt_secret),
+    });
 
     let addr = state.config.listen_addr.clone();
 

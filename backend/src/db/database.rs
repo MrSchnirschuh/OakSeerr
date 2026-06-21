@@ -38,6 +38,39 @@ impl Database {
         Ok(row)
     }
 
+    pub async fn get_user_by_jellyfin_id(&self, jellyfin_user_id: &str) -> anyhow::Result<Option<User>> {
+        let row = sqlx::query_as::<_, User>("SELECT * FROM users WHERE jellyfin_user_id = ?")
+            .bind(jellyfin_user_id)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(row)
+    }
+
+    pub async fn create_user(&self, user: &User) -> anyhow::Result<()> {
+        sqlx::query(
+            "INSERT INTO users (id, username, display_name, email, avatar_url, jellyfin_user_id, permissions, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+            .bind(&user.id)
+            .bind(&user.username)
+            .bind(&user.display_name)
+            .bind(&user.email)
+            .bind(&user.avatar_url)
+            .bind(&user.jellyfin_user_id)
+            .bind(user.permissions)
+            .bind(&user.created_at)
+            .bind(&user.updated_at)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn list_users(&self) -> anyhow::Result<Vec<User>> {
+        let rows = sqlx::query_as::<_, User>("SELECT * FROM users ORDER BY username")
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(rows)
+    }
+
     // === Integrations ===
     pub async fn list_integrations(&self) -> anyhow::Result<Vec<Integration>> {
         let rows = sqlx::query_as::<_, Integration>("SELECT * FROM integrations ORDER BY name")

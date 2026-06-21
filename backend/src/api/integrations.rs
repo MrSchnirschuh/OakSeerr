@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, State},
-    routing::{get, post, put, delete},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -8,6 +8,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 use crate::AppState;
 use crate::models::Integration;
+use crate::services::integrations::IntegrationService;
+
+const ALLOWED_TYPES: &[&str] = &["radarr", "sonarr", "lidarr", "readarr", "mylar3"];
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IntegrationResponse {
@@ -19,6 +22,21 @@ pub struct IntegrationResponse {
     pub enabled: bool,
     pub created_at: String,
     pub updated_at: String,
+}
+
+impl From<Integration> for IntegrationResponse {
+    fn from(i: Integration) -> Self {
+        IntegrationResponse {
+            id: i.id,
+            name: i.name,
+            integration_type: i.integration_type,
+            base_url: i.base_url,
+            api_key: i.api_key,
+            enabled: i.enabled,
+            created_at: i.created_at,
+            updated_at: i.updated_at,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -52,22 +70,22 @@ async fn list_integrations(
     State(state): State<Arc<AppState>>,
 ) -> Json<Vec<IntegrationResponse>> {
     let integrations = state.db.list_integrations().await.unwrap_or_default();
-    Json(integrations.into_iter().map(|i| IntegrationResponse {
-        id: i.id,
-        name: i.name,
-        integration_type: i.integration_type,
-        base_url: i.base_url,
-        api_key: i.api_key,
-        enabled: i.enabled,
-        created_at: i.created_at,
-        updated_at: i.updated_at,
-    }).collect())
+    Json(integrations.into_iter().map(IntegrationResponse::from).collect())
 }
 
 async fn create_integration(
     State(state): State<Arc<AppState>>,
     Json(req): Json<CreateIntegrationRequest>,
-) -> Json<IntegrationResponse> {
+) -> Result<Json<IntegrationResponse>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    if !ALLOWED_TYPES.contains(&req.integration_type.as_str()) {
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": format!("Invalid integration type '{}'. Allowed types: {:?}", req.integration_type, ALLOWED_TYPES)
+            })),
+        ));
+    }
+
     let integration = Integration {
         id: Uuid::new_v4().to_string(),
         name: req.name,
@@ -78,96 +96,101 @@ async fn create_integration(
         created_at: chrono::Utc::now().to_rfc3339(),
         updated_at: chrono::Utc::now().to_rfc3339(),
     };
-    state.db.create_integration(&integration).await.unwrap();
-    Json(IntegrationResponse {
-        id: integration.id,
-        name: integration.name,
-        integration_type: integration.integration_type,
-        base_url: integration.base_url,
-        api_key: integration.api_key,
-        enabled: integration.enabled,
-        created_at: integration.created_at,
-        updated_at: integration.updated_at,
-    })
+
+    state.db.create_integration(&integration).await.map_err(|e| {
+        (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+    })?;
+
+    Ok(Json(IntegrationResponse::from(integration)))
 }
 
 async fn get_integration(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Json<IntegrationResponse> {
-    let integration = state.db.get_integration(&id).await.unwrap().unwrap();
-    Json(IntegrationResponse {
-        id: integration.id,
-        name: integration.name,
-        integration_type: integration.integration_type,
-        base_url: integration.base_url,
-        api_key: integration.api_key,
-        enabled: integration.enabled,
-        created_at: integration.created_at,
-        updated_at: integration.updated_at,
-    })
+) -> Result<Json<IntegrationResponse>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    let integration = state.db.get_integration(&id).await
+        .map_err(|e| {
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": e.to_string()})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                axum::http::StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "Integration not found"})),
+            )
+        })?;
+
+    Ok(Json(IntegrationResponse::from(integration)))
 }
 
 async fn update_integration(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     Json(req): Json<UpdateIntegrationRequest>,
-) -> Json<IntegrationResponse> {
-    let mut integration = state.db.get_integration(&id).await.unwrap().unwrap();
+) -> Result<Json<IntegrationResponse>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    let mut integration = state.db.get_integration(&id).await
+        .map_err(|e| {
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": e.to_string()})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                axum::http::StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "Integration not found"})),
+            )
+        })?;
+
     if let Some(name) = req.name { integration.name = name; }
     if let Some(base_url) = req.base_url { integration.base_url = base_url; }
     if let Some(api_key) = req.api_key { integration.api_key = api_key; }
     if let Some(enabled) = req.enabled { integration.enabled = enabled; }
     integration.updated_at = chrono::Utc::now().to_rfc3339();
-    state.db.update_integration(&integration).await.unwrap();
-    Json(IntegrationResponse {
-        id: integration.id,
-        name: integration.name,
-        integration_type: integration.integration_type,
-        base_url: integration.base_url,
-        api_key: integration.api_key,
-        enabled: integration.enabled,
-        created_at: integration.created_at,
-        updated_at: integration.updated_at,
-    })
+
+    state.db.update_integration(&integration).await.map_err(|e| {
+        (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+    })?;
+
+    Ok(Json(IntegrationResponse::from(integration)))
 }
 
 async fn delete_integration(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Json<serde_json::Value> {
-    state.db.delete_integration(&id).await.unwrap();
+    state.db.delete_integration(&id).await.unwrap_or_default();
     Json(serde_json::json!({"status": "deleted"}))
 }
 
 async fn test_integration(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Json<serde_json::Value> {
-    let integration = state.db.get_integration(&id).await.unwrap().unwrap();
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
-        .build()
-        .unwrap();
+) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    let integration = state.db.get_integration(&id).await
+        .map_err(|e| {
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": e.to_string()})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                axum::http::StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "Integration not found"})),
+            )
+        })?;
 
-    let result = match integration.integration_type.as_str() {
-        "radarr" | "sonarr" | "lidarr" | "readarr" | "mylar3" => {
-            let url = format!("{}/api/v3/system/status", integration.base_url.trim_end_matches('/'));
-            let res = client.get(&url)
-                .header("X-Api-Key", &integration.api_key)
-                .send()
-                .await;
-            match res {
-                Ok(r) if r.status().is_success() => Ok("Connected successfully"),
-                Ok(r) => Err(format!("HTTP {}", r.status())),
-                Err(e) => Err(format!("Connection failed: {}", e)),
-            }
-        }
-        _ => Err("Unknown integration type".to_string()),
-    };
-
-    match result {
-        Ok(msg) => Json(serde_json::json!({"status": "ok", "message": msg})),
-        Err(msg) => Json(serde_json::json!({"status": "error", "message": msg})),
+    match IntegrationService::test(&integration).await {
+        Ok(msg) => Ok(Json(serde_json::json!({"status": "ok", "message": msg}))),
+        Err(e) => Ok(Json(serde_json::json!({"status": "error", "message": e.to_string()}))),
     }
 }

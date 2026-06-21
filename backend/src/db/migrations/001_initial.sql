@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS media_requests (
 CREATE TABLE IF NOT EXISTS integrations (
     id TEXT PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
-    integration_type TEXT NOT NULL CHECK(integration_type IN ('radarr', 'sonarr', 'lidarr', 'readarr', 'mylar3', 'sabnzbd', 'prowlarr')),
+    integration_type TEXT NOT NULL CHECK(integration_type IN ('radarr', 'sonarr', 'lidarr', 'readarr', 'mylar3')),
     base_url TEXT NOT NULL,
     api_key TEXT NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 1,

@@ -1,25 +1,18 @@
 use axum::{
     extract::State,
+    http::StatusCode,
     routing::{get, put},
     Json, Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use std::collections::HashMap;
 use std::sync::Arc;
 use crate::AppState;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SettingsResponse {
-    pub app_name: String,
-    pub jellyfin_url: String,
-    pub sso_enabled: bool,
-}
+use crate::services::settings::SettingsService;
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateSettingsRequest {
-    pub app_name: Option<String>,
-    pub jellyfin_url: Option<String>,
-    pub jellyfin_api_key: Option<String>,
-    pub sso_enabled: Option<bool>,
+    pub settings: HashMap<String, String>,
 }
 
 pub fn router() -> Router<Arc<AppState>> {
@@ -31,36 +24,28 @@ pub fn router() -> Router<Arc<AppState>> {
 
 async fn get_settings(
     State(state): State<Arc<AppState>>,
-) -> Json<SettingsResponse> {
-    let app_name = state.db.get_setting("app_name").await.unwrap_or(Some("OakSeerr".to_string())).unwrap_or_default();
-    let jellyfin_url = state.db.get_setting("jellyfin_url").await.unwrap_or_default().unwrap_or_default();
-    let sso_enabled = state.db.get_setting("sso_enabled").await.unwrap_or(Some("false".to_string())).unwrap_or_default();
-
-    Json(SettingsResponse {
-        app_name,
-        jellyfin_url,
-        sso_enabled: sso_enabled == "true",
-    })
+) -> Json<HashMap<String, String>> {
+    let settings = SettingsService::get_all(&state.db).await.unwrap_or_default();
+    Json(settings)
 }
 
 async fn update_settings(
     State(state): State<Arc<AppState>>,
     Json(req): Json<UpdateSettingsRequest>,
-) -> Json<SettingsResponse> {
-    if let Some(app_name) = &req.app_name {
-        state.db.set_setting("app_name", app_name).await.unwrap();
-    }
-    if let Some(jellyfin_url) = &req.jellyfin_url {
-        state.db.set_setting("jellyfin_url", jellyfin_url).await.unwrap();
-    }
-    if let Some(api_key) = &req.jellyfin_api_key {
-        state.db.set_setting("jellyfin_api_key", api_key).await.unwrap();
-    }
-    if let Some(sso) = req.sso_enabled {
-        state.db.set_setting("sso_enabled", if sso { "true" } else { "false" }).await.unwrap();
+) -> Result<Json<HashMap<String, String>>, (StatusCode, Json<serde_json::Value>)> {
+    for (key, value) in &req.settings {
+        SettingsService::set(&state.db, key, value)
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": format!("Failed to set '{}': {}", key, e)})),
+                )
+            })?;
     }
 
-    get_settings(State(state)).await
+    let settings = SettingsService::get_all(&state.db).await.unwrap_or_default();
+    Ok(Json(settings))
 }
 
 async fn get_about() -> Json<serde_json::Value> {
@@ -71,6 +56,6 @@ async fn get_about() -> Json<serde_json::Value> {
         "license": "MIT",
         "repository": "https://github.com/MrSchnirschuh/OakSeerr",
         "features": ["Movies", "TV Shows", "Music", "Books", "Comics"],
-        "integrations": ["Radarr", "Sonarr", "Lidarr", "Readarr", "Mylar3", "SABnzbd", "Prowlarr"]
+        "integrations": ["Radarr", "Sonarr", "Lidarr", "Readarr", "Mylar3"]
     }))
 }
