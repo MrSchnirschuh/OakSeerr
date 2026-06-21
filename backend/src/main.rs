@@ -4,8 +4,10 @@ use axum::{
     Json, Router,
 };
 use std::sync::Arc;
+use std::path::PathBuf;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
+use tower_http::services::ServeDir;
 use tracing_subscriber::EnvFilter;
 
 mod api;
@@ -37,7 +39,14 @@ async fn main() -> anyhow::Result<()> {
 
     let state = Arc::new(AppState { db, config });
 
+    let addr = state.config.listen_addr.clone();
+
     // Build router
+    let frontend_path: PathBuf = std::env::var("OAKSEERR_FRONTEND_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            [env!("CARGO_MANIFEST_DIR"), "..", "frontend", "out"].iter().collect()
+        });
     let app = Router::new()
         .route("/api/health", get(health_check))
         .nest("/api/v1/auth", api::auth::router())
@@ -47,9 +56,8 @@ async fn main() -> anyhow::Result<()> {
         .nest("/api/v1/integrations", api::integrations::router())
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
-        .with_state(state);
-
-    let addr = format!("0.0.0.0:{}", 5055);
+        .with_state(state)
+        .fallback_service(ServeDir::new(&frontend_path).append_index_html_on_directories(true));
     tracing::info!("Listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;

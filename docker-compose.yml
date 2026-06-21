@@ -1,13 +1,21 @@
 services:
   oakseerr:
-    build: .
+    image: ghcr.io/mrschnirschuh/oakseerr:latest
     container_name: oakseerr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - PORT=5055
+      - TZ=Etc/UTC
     ports:
       - "5055:5055"
     volumes:
-      - ./data:/app/data
-      - ./oakseerr.env:/app/.env:ro
-    environment:
-      - DATABASE_URL=sqlite:///app/data/oakseerr.db?mode=rwc
-      - LISTEN_ADDR=0.0.0.0:5055
+      - ./config:/app/config
+      - ./cache:/app/cache
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5055/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
