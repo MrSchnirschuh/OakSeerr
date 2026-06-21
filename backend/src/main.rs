@@ -47,6 +47,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| {
             [env!("CARGO_MANIFEST_DIR"), "..", "frontend", "out"].iter().collect()
         });
+
     let app = Router::new()
         .route("/api/health", get(health_check))
         .nest("/api/v1/auth", api::auth::router())
@@ -58,6 +59,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(TraceLayer::new_for_http())
         .with_state(state)
         .fallback_service(ServeDir::new(&frontend_path).append_index_html_on_directories(true));
+
     tracing::info!("Listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;

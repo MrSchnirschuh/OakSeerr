@@ -3,16 +3,17 @@ services:
     image: ghcr.io/mrschnirschuh/oakseerr:latest
     container_name: oakseerr
     environment:
-      - PUID=1000
-      - PGID=1000
+      - PUID=568
+      - PGID=568
       - PORT=5055
-      - TZ=Etc/UTC
+      - TZ=Europe/Berlin
     ports:
       - "5055:5055"
-    volumes:
-      - ./config:/app/config
-      - ./cache:/app/cache
     restart: unless-stopped
+    user: "568:568"
+    volumes:
+      - /mnt/.ix-apps/app_mounts/oakseerr/config:/app/config
+      - /mnt/.ix-apps/app_mounts/oakseerr/cache:/app/cache
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5055/health"]
       interval: 30s
