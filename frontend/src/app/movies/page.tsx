@@ -1,42 +1,79 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Search, Film } from "lucide-react";
 import MediaCard from "@/components/MediaCard";
 
-const movies = [
-  { id: "1", title: "Dune: Part Two", year: 2024, type: "movie", poster: null, status: "available" },
-  { id: "2", title: "The Batman", year: 2022, type: "movie", poster: null, status: "requested" },
-  { id: "3", title: "Interstellar", year: 2014, type: "movie", poster: null, status: "available" },
-  { id: "4", title: "Blade Runner 2049", year: 2017, type: "movie", poster: null, status: "available" },
-  { id: "5", title: "Everything Everywhere All at Once", year: 2022, type: "movie", poster: null, status: "processing" },
-  { id: "6", title: "The Matrix", year: 1999, type: "movie", poster: null, status: "available" },
-  { id: "7", title: "Inception", year: 2010, type: "movie", poster: null, status: "available" },
-  { id: "8", title: "Parasite", year: 2019, type: "movie", poster: null, status: "requested" },
-];
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export default function MoviesPage() {
   const [search, setSearch] = useState("");
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchMovies() {
+      setLoading(true);
+      try {
+        const url = search.trim()
+          ? `${API_BASE}/api/v1/media/search?q=${encodeURIComponent(search)}&media_type=movie`
+          : `${API_BASE}/api/v1/media/search?q=&media_type=movie`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          setItems(Array.isArray(data) ? data : []);
+        } else {
+          setItems([]);
+        }
+      } catch (e) {
+        setItems([]);
+      }
+      setLoading(false);
+    }
+    fetchMovies();
+  }, [search]);
 
   return (
     <div>
       <div className="section-header">
-        <h1 className="section-title" style={{ fontSize: "1.5rem" }}>Movies</h1>
-        <input
-          className="input"
-          placeholder="Search movies..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ maxWidth: "300px" }}
-        />
+        <h1 className="section-title">
+          <Film size={22} style={{ marginRight: "8px", verticalAlign: "middle" }} />
+          Movies
+        </h1>
+        <div style={{ position: "relative", maxWidth: "300px", width: "100%" }}>
+          <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--jf-text-secondary)", pointerEvents: "none" }} />
+          <input
+            className="input"
+            placeholder="Search movies..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ paddingLeft: "36px" }}
+          />
+        </div>
       </div>
 
-      <div className="media-grid">
-        {movies
-          .filter((m) => m.title.toLowerCase().includes(search.toLowerCase()))
-          .map((movie) => (
+      {loading ? (
+        <div className="media-grid">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="skeleton" style={{ aspectRatio: "2/3", borderRadius: "12px" }} />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <div className="card" style={{ padding: "48px", textAlign: "center" }}>
+          <Film size={48} style={{ color: "var(--jf-text-secondary)", margin: "0 auto 16px", display: "block", opacity: 0.3 }} />
+          <p style={{ color: "var(--jf-text-secondary)" }}>
+            {search.trim()
+              ? `No movies found for "${search}".`
+              : "No movies found. Add a Radarr integration in Settings to see your movies."}
+          </p>
+        </div>
+      ) : (
+        <div className="media-grid">
+          {items.map((movie: any) => (
             <MediaCard key={movie.id} item={movie} />
           ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

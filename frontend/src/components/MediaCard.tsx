@@ -1,69 +1,82 @@
 "use client";
 
+import { Film, Tv, Music, BookOpen, BookMarked, CheckCircle2, Clock, AlertCircle, XCircle } from "lucide-react";
+
 interface MediaItem {
   id: string;
   title: string;
   year?: number;
-  type: string;
-  poster: string | null;
+  media_type: string;
+  poster_url: string | null;
+  backdrop_url?: string | null;
+  overview?: string | null;
   status: string;
 }
 
-export default function MediaCard({ item }: { item: MediaItem }) {
-  const statusColors: Record<string, string> = {
-    available: "badge-success",
-    requested: "badge-primary",
-    processing: "badge-warning",
-    error: "badge-error",
-  };
+const typeIcons: Record<string, any> = {
+  movie: Film,
+  tv: Tv,
+  music: Music,
+  book: BookOpen,
+  comic: BookMarked,
+};
 
-  const statusLabels: Record<string, string> = {
-    available: "Available",
-    requested: "Requested",
-    processing: "Processing",
-    error: "Error",
-  };
+const statusConfig: Record<string, { icon: any; label: string; className: string }> = {
+  available: { icon: CheckCircle2, label: "Available", className: "badge-success" },
+  requested: { icon: Clock, label: "Requested", className: "badge-primary" },
+  processing: { icon: AlertCircle, label: "Processing", className: "badge-warning" },
+  error: { icon: XCircle, label: "Error", className: "badge-error" },
+};
+
+export default function MediaCard({ item }: { item: MediaItem }) {
+  const TypeIcon = typeIcons[item.media_type] || Film;
+  const status = statusConfig[item.status] || { icon: Clock, label: item.status, className: "badge" };
+  const StatusIcon = status.icon;
 
   return (
-    <div className="card" style={{ overflow: "hidden", cursor: "pointer" }}>
-      {/* Poster placeholder */}
-      <div
-        style={{
-          width: "100%",
-          aspectRatio: "2/3",
-          background: "linear-gradient(135deg, rgba(0,164,220,0.1) 0%, rgba(170,92,195,0.05) 100%)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "2rem",
-          color: "var(--jf-text-secondary)",
-        }}
-      >
-        {item.type === "movie" ? "🎬" : item.type === "tv" ? "📺" : item.type === "music" ? "🎵" : item.type === "book" ? "📚" : "📖"}
+    <div
+      className="media-card"
+      onClick={() => window.location.href = `/${item.media_type}/${item.id}`}
+    >
+      {/* Poster */}
+      <div className="media-card-poster">
+        {item.poster_url ? (
+          <img
+            src={item.poster_url}
+            alt={item.title}
+            loading="lazy"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none";
+              (e.target as HTMLImageElement).parentElement!.querySelector(".placeholder")!.classList.remove("hidden");
+            }}
+          />
+        ) : null}
+        <div className={`media-card-poster-placeholder ${item.poster_url ? "hidden" : ""}`}>
+          <TypeIcon size={48} strokeWidth={1} />
+        </div>
+
+        {/* Status badge */}
+        <div className="media-card-status">
+          <span className={`badge ${status.className}`}>
+            <StatusIcon size={12} />
+            {status.label}
+          </span>
+        </div>
+
+        {/* Hover overlay */}
+        <div className="media-card-overlay">
+          {item.overview && (
+            <p style={{ fontSize: "0.75rem", lineHeight: 1.4, color: "rgba(255,255,255,0.8)", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+              {item.overview}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Info */}
-      <div style={{ padding: "12px" }}>
-        <h3
-          style={{
-            fontSize: "0.875rem",
-            fontWeight: 600,
-            marginBottom: "4px",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {item.title}
-        </h3>
-        {item.year && (
-          <p style={{ fontSize: "0.75rem", color: "var(--jf-text-secondary)", marginBottom: "8px" }}>
-            {item.year}
-          </p>
-        )}
-        <span className={`badge ${statusColors[item.status] || "badge"}`}>
-          {statusLabels[item.status] || item.status}
-        </span>
+      <div className="media-card-info">
+        <div className="media-card-title">{item.title}</div>
+        {item.year && <div className="media-card-year">{item.year}</div>}
       </div>
     </div>
   );
