@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use crate::services::media::MediaService;
+use crate::services::media::{MediaService, MediaDetail};
 use crate::AppState;
 use crate::models::Media;
 
@@ -30,6 +30,10 @@ pub struct MediaItem {
 impl From<Media> for MediaItem {
     fn from(m: Media) -> Self {
         let year = m.release_date.as_ref().and_then(|d| d[..4].parse().ok());
+        // Parse genres from JSON string stored in DB
+        let genres: Option<Vec<String>> = m.genres.as_ref().and_then(|g| {
+            serde_json::from_str(g).ok()
+        });
         MediaItem {
             id: m.id,
             title: m.title,
@@ -39,12 +43,12 @@ impl From<Media> for MediaItem {
             backdrop_url: m.backdrop_url,
             overview: m.overview,
             status: m.status,
-            rating: None,
-            genres: None,
-            season_count: None,
-            episode_count: None,
-            artist_name: None,
-            author_name: None,
+            rating: m.rating,
+            genres,
+            season_count: m.season_count,
+            episode_count: m.episode_count,
+            artist_name: m.artist_name,
+            author_name: m.author_name,
         }
     }
 }
@@ -71,6 +75,7 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/trending", get(get_trending))
         .route("/library", get(get_library))
         .route("/{id}", get(get_media))
+        .route("/{id}/detail", get(get_media_detail))
 }
 
 async fn search_media(
@@ -110,4 +115,26 @@ async fn get_media(
 ) -> Json<Option<MediaItem>> {
     let media = state.db.get_media(&id).await.unwrap_or(None);
     Json(media.map(MediaItem::from))
+}
+
+async fn get_media_detail(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<MediaDetail>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    let detail = MediaService::detail(&state.db, &id)
+        .await
+        .map_err(|e| {
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": e.to_string()})),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                axum::http::StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "Media not found"})),
+            )
+        })?;
+
+    Ok(Json(detail))
 }

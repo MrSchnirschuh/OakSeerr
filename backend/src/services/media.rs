@@ -1,15 +1,8 @@
 use crate::db::Database;
-use crate::models::{Integration, Media, MediaRequest};
+use crate::models::{Integration, Media};
+use crate::services::settings::SettingsService;
 use serde_json::Value;
 use std::collections::HashMap;
-
-// Echte API-Keys für externe Dienste
-// TMDB: Public Read-Only Key (gültig für Basic-Trending)
-const TMDB_API_KEY: &str = "1f0e6b3b5c5a5b5d5e5f5a5b5c5d5e5f";
-// LastFM: Public API Key
-const LASTFM_API_KEY: &str = "5b8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c";
-// ComicVine: Public API Key
-const COMICVINE_API_KEY: &str = "5b8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c";
 
 pub struct MediaService;
 
@@ -60,7 +53,7 @@ impl MediaService {
 
         match media_type {
             Some("movie") | None => {
-                if let Ok(movies) = Self::tmdb_trending("movie").await {
+                if let Ok(movies) = Self::tmdb_trending(db, "movie").await {
                     results.extend(movies);
                 }
             }
@@ -69,7 +62,7 @@ impl MediaService {
 
         match media_type {
             Some("tv") | None => {
-                if let Ok(tv) = Self::tmdb_trending("tv").await {
+                if let Ok(tv) = Self::tmdb_trending(db, "tv").await {
                     results.extend(tv);
                 }
             }
@@ -78,7 +71,7 @@ impl MediaService {
 
         match media_type {
             Some("music") | None => {
-                if let Ok(music) = Self::lastfm_trending().await {
+                if let Ok(music) = Self::lastfm_trending(db).await {
                     results.extend(music);
                 }
             }
@@ -96,7 +89,7 @@ impl MediaService {
 
         match media_type {
             Some("comic") | None => {
-                if let Ok(comics) = Self::comicvine_trending().await {
+                if let Ok(comics) = Self::comicvine_trending(db).await {
                     results.extend(comics);
                 }
             }
@@ -144,6 +137,55 @@ impl MediaService {
         Ok(results)
     }
 
+    /// Get detail for a single media item (includes cast, similar items, request status)
+    pub async fn detail(
+        db: &Database,
+        media_id: &str,
+    ) -> anyhow::Result<Option<MediaDetail>> {
+        let media = db.get_media(media_id).await?;
+        let media = match media {
+            Some(m) => m,
+            None => return Ok(None),
+        };
+
+        // Get request status for this media
+        let requests = db.list_requests().await?;
+        let request_status = requests.iter()
+            .find(|r| r.media_id == media.id)
+            .map(|r| RequestStatusInfo {
+                id: r.id.clone(),
+                status: r.status.clone(),
+                download_status: r.download_status.clone(),
+                created_at: r.created_at.clone(),
+            });
+
+        // Try to get cast/similar from TMDB if it's a movie or TV show
+        let cast = if let Some(tmdb_id) = media.tmdb_id {
+            match media.media_type.as_str() {
+                "movie" | "tv" => Self::tmdb_cast(db, media.media_type.as_str(), tmdb_id).await.ok(),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        let similar = if let Some(tmdb_id) = media.tmdb_id {
+            match media.media_type.as_str() {
+                "movie" | "tv" => Self::tmdb_similar(db, media.media_type.as_str(), tmdb_id).await.ok(),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        Ok(Some(MediaDetail {
+            media,
+            cast: cast.unwrap_or_default(),
+            similar: similar.unwrap_or_default(),
+            request: request_status,
+        }))
+    }
+
     // === Private helpers ===
 
     async fn search_integration(integration: &Integration, query: &str) -> anyhow::Result<Vec<Media>> {
@@ -155,7 +197,7 @@ impl MediaService {
             "sonarr" => ("series", "term"),
             "lidarr" => ("artist", "term"),
             "readarr" => ("book", "term"),
-            "mylar3" => ("search", "query"),
+            "mylar3" => ("search", "query"), // Mylar3 uses /api/v3/search?query=
             _ => return Ok(vec![]),
         };
 
@@ -185,7 +227,7 @@ impl MediaService {
             "sonarr" => "series",
             "lidarr" => "artist",
             "readarr" => "book",
-            "mylar3" => "comics",
+            "mylar3" => "comics", // Mylar3 uses /api/v3/comics for library
             _ => return Ok(vec![]),
         };
 
@@ -224,11 +266,19 @@ impl MediaService {
             .to_string();
 
         let id = item.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
-        let year = item.get("year").and_then(|v| v.as_i64());
+        let _year = item.get("year").and_then(|v| v.as_i64());
         let overview = item.get("overview").or_else(|| item.get("description")).and_then(|v| v.as_str()).map(|s| s.to_string());
 
         // Build poster URL from integration
-        let poster_url = if let Some(images) = item.get("images").and_then(|v| v.as_array()) {
+        // *arr APIs return 'posterUrl' or 'remotePoster' directly (not in 'images' array)
+        // Fall back to 'images' array if direct fields are not present
+        let poster_url = if let Some(url) = item.get("posterUrl").and_then(|v| v.as_str()) {
+            Some(if url.starts_with("http") { url.to_string() } else { format!("{}{}", integration_type, url) })
+        } else if let Some(url) = item.get("remotePoster").and_then(|v| v.as_str()) {
+            Some(if url.starts_with("http") { url.to_string() } else { format!("{}{}", integration_type, url) })
+        } else if let Some(url) = item.get("poster").and_then(|v| v.as_str()) {
+            Some(if url.starts_with("http") { url.to_string() } else { format!("{}{}", integration_type, url) })
+        } else if let Some(images) = item.get("images").and_then(|v| v.as_array()) {
             images.iter().find(|img| {
                 img.get("coverType").or_else(|| img.get("type")).and_then(|v| v.as_str()) == Some("poster")
             }).or_else(|| images.first())
@@ -238,7 +288,7 @@ impl MediaService {
                 else { format!("{}{}", integration_type, u) }
             })
         } else {
-            item.get("remotePoster").or_else(|| item.get("poster")).and_then(|v| v.as_str()).map(|s| s.to_string())
+            None
         };
 
         let backdrop_url = if let Some(images) = item.get("images").and_then(|v| v.as_array()) {
@@ -271,6 +321,9 @@ impl MediaService {
 
         let release_date = item.get("releaseDate").or_else(|| item.get("release")).and_then(|v| v.as_str()).map(|s| s.to_string());
 
+        // Serialize genres to JSON string for DB storage
+        let genres_json = genres.as_ref().map(|g| serde_json::to_string(g).unwrap_or_default());
+
         Ok(Media {
             id: format!("{}-{}", integration_type, id),
             tmdb_id: item.get("tmdbId").and_then(|v| v.as_i64()),
@@ -284,6 +337,12 @@ impl MediaService {
             backdrop_url,
             release_date,
             status: "available".to_string(),
+            rating,
+            genres: genres_json,
+            season_count,
+            episode_count,
+            artist_name,
+            author_name,
             created_at: chrono::Utc::now().to_rfc3339(),
             updated_at: chrono::Utc::now().to_rfc3339(),
         })
@@ -347,11 +406,16 @@ impl MediaService {
 
     // === External API trending ===
 
-    async fn tmdb_trending(media_type: &str) -> anyhow::Result<Vec<Media>> {
+    async fn get_api_key(db: &Database, key_name: &str, default: &str) -> String {
+        SettingsService::get_api_key(db, key_name, default).await.unwrap_or_else(|_| default.to_string())
+    }
+
+    async fn tmdb_trending(db: &Database, media_type: &str) -> anyhow::Result<Vec<Media>> {
+        let api_key = Self::get_api_key(db, "TMDB_API_KEY", "1f0e6b3b5c5a5b5d5e5f5a5b5c5d5e5f").await;
         let client = reqwest::Client::new();
         let url = format!(
             "https://api.themoviedb.org/3/trending/{}/week?language=en-US&api_key={}",
-            media_type, TMDB_API_KEY
+            media_type, api_key
         );
 
         let resp = client.get(&url)
@@ -394,6 +458,8 @@ impl MediaService {
                     g.as_i64().and_then(|id| genre_map.get(&id)).map(|s| s.to_string())
                 }).collect());
 
+            let genres_json = genres.as_ref().map(|g| serde_json::to_string(g).unwrap_or_default());
+
             Media {
                 id: format!("tmdb-{}", id),
                 tmdb_id: Some(id),
@@ -407,6 +473,12 @@ impl MediaService {
                 backdrop_url: backdrop_path.map(|p| format!("https://image.tmdb.org/t/p/w1280{}", p)),
                 release_date,
                 status: "unknown".to_string(),
+                rating: vote_average,
+                genres: genres_json,
+                season_count: None,
+                episode_count: None,
+                artist_name: None,
+                author_name: None,
                 created_at: chrono::Utc::now().to_rfc3339(),
                 updated_at: chrono::Utc::now().to_rfc3339(),
             }
@@ -415,11 +487,91 @@ impl MediaService {
         Ok(items)
     }
 
-    async fn lastfm_trending() -> anyhow::Result<Vec<Media>> {
+    async fn tmdb_cast(db: &Database, media_type: &str, tmdb_id: i64) -> anyhow::Result<Vec<CastMember>> {
+        let api_key = Self::get_api_key(db, "TMDB_API_KEY", "1f0e6b3b5c5a5b5d5e5f5a5b5c5d5e5f").await;
+        let client = reqwest::Client::new();
+        let url = format!(
+            "https://api.themoviedb.org/3/{}/{}/credits?api_key={}&language=en-US",
+            if media_type == "movie" { "movie" } else { "tv" },
+            tmdb_id,
+            api_key,
+        );
+
+        let resp = client.get(&url).send().await?;
+        if !resp.status().is_success() {
+            return Ok(vec![]);
+        }
+
+        let data: Value = resp.json().await?;
+        let cast = data.get("cast").and_then(|c| c.as_array())
+            .map(|arr| arr.iter().take(20).filter_map(|c| {
+                Some(CastMember {
+                    name: c.get("name").and_then(|v| v.as_str())?.to_string(),
+                    character: c.get("character").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    profile_path: c.get("profile_path").and_then(|v| v.as_str())
+                        .map(|p| format!("https://image.tmdb.org/t/p/w185{}", p)),
+                })
+            }).collect())
+            .unwrap_or_default();
+
+        Ok(cast)
+    }
+
+    async fn tmdb_similar(db: &Database, media_type: &str, tmdb_id: i64) -> anyhow::Result<Vec<Media>> {
+        let api_key = Self::get_api_key(db, "TMDB_API_KEY", "1f0e6b3b5c5a5b5d5e5f5a5b5c5d5e5f").await;
+        let client = reqwest::Client::new();
+        let url = format!(
+            "https://api.themoviedb.org/3/{}/{}/similar?api_key={}&language=en-US&page=1",
+            if media_type == "movie" { "movie" } else { "tv" },
+            tmdb_id,
+            api_key,
+        );
+
+        let resp = client.get(&url).send().await?;
+        if !resp.status().is_success() {
+            return Ok(vec![]);
+        }
+
+        let data: Value = resp.json().await?;
+        let results = data.get("results").and_then(|r| r.as_array())
+            .map(|arr| arr.iter().take(10).filter_map(|item| {
+                let id = item.get("id").and_then(|v| v.as_i64())?;
+                let title = item.get("title").or_else(|| item.get("name")).and_then(|v| v.as_str())?.to_string();
+                let poster_path = item.get("poster_path").and_then(|v| v.as_str());
+                Some(Media {
+                    id: format!("tmdb-{}", id),
+                    tmdb_id: Some(id),
+                    tvdb_id: None,
+                    musicbrainz_id: None,
+                    isbn: None,
+                    media_type: media_type.to_string(),
+                    title,
+                    overview: item.get("overview").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    poster_url: poster_path.map(|p| format!("https://image.tmdb.org/t/p/w500{}", p)),
+                    backdrop_url: None,
+                    release_date: item.get("release_date").or_else(|| item.get("first_air_date")).and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    status: "unknown".to_string(),
+                    rating: item.get("vote_average").and_then(|v| v.as_f64()),
+                    genres: None,
+                    season_count: None,
+                    episode_count: None,
+                    artist_name: None,
+                    author_name: None,
+                    created_at: chrono::Utc::now().to_rfc3339(),
+                    updated_at: chrono::Utc::now().to_rfc3339(),
+                })
+            }).collect())
+            .unwrap_or_default();
+
+        Ok(results)
+    }
+
+    async fn lastfm_trending(db: &Database) -> anyhow::Result<Vec<Media>> {
+        let api_key = Self::get_api_key(db, "LASTFM_API_KEY", "5b8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c").await;
         let client = reqwest::Client::new();
         let url = format!(
             "https://ws.audioscrobbler.com/2.0/?method=chart.gettopartists&api_key={}&format=json&limit=20",
-            LASTFM_API_KEY
+            api_key
         );
 
         let resp = client.get(&url).send().await?;
@@ -457,6 +609,12 @@ impl MediaService {
                 backdrop_url: None,
                 release_date: None,
                 status: "unknown".to_string(),
+                rating: None,
+                genres: None,
+                season_count: None,
+                episode_count: None,
+                artist_name: None,
+                author_name: None,
                 created_at: chrono::Utc::now().to_rfc3339(),
                 updated_at: chrono::Utc::now().to_rfc3339(),
             }
@@ -501,11 +659,17 @@ impl MediaService {
                     .map(|s| s.to_string()),
                 media_type: "book".to_string(),
                 title,
-                overview: authors,
+                overview: authors.clone(),
                 poster_url: cover_id.map(|c| format!("https://covers.openlibrary.org/b/id/{}-L.jpg", c)),
                 backdrop_url: None,
                 release_date: first_publish_year.map(|y| y.to_string()),
                 status: "unknown".to_string(),
+                rating: None,
+                genres: None,
+                season_count: None,
+                episode_count: None,
+                artist_name: None,
+                author_name: authors,
                 created_at: chrono::Utc::now().to_rfc3339(),
                 updated_at: chrono::Utc::now().to_rfc3339(),
             }
@@ -514,11 +678,12 @@ impl MediaService {
         Ok(items)
     }
 
-    async fn comicvine_trending() -> anyhow::Result<Vec<Media>> {
+    async fn comicvine_trending(db: &Database) -> anyhow::Result<Vec<Media>> {
+        let api_key = Self::get_api_key(db, "COMICVINE_API_KEY", "5b8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c").await;
         let client = reqwest::Client::new();
         let url = format!(
             "https://comicvine.gamespot.com/api/issues/?api_key={}&format=json&sort=date_added:desc&limit=20&field_list=id,name,image,volume,cover_date,description",
-            COMICVINE_API_KEY
+            api_key
         );
 
         let resp = client.get(&url).send().await?;
@@ -554,6 +719,12 @@ impl MediaService {
                 backdrop_url: None,
                 release_date: cover_date,
                 status: "unknown".to_string(),
+                rating: None,
+                genres: None,
+                season_count: None,
+                episode_count: None,
+                artist_name: None,
+                author_name: None,
                 created_at: chrono::Utc::now().to_rfc3339(),
                 updated_at: chrono::Utc::now().to_rfc3339(),
             }
@@ -561,6 +732,31 @@ impl MediaService {
 
         Ok(items)
     }
+}
+
+// === Data structures for detail endpoint ===
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MediaDetail {
+    pub media: Media,
+    pub cast: Vec<CastMember>,
+    pub similar: Vec<Media>,
+    pub request: Option<RequestStatusInfo>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CastMember {
+    pub name: String,
+    pub character: Option<String>,
+    pub profile_path: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RequestStatusInfo {
+    pub id: String,
+    pub status: String,
+    pub download_status: String,
+    pub created_at: String,
 }
 
 fn urlencoding(s: &str) -> String {

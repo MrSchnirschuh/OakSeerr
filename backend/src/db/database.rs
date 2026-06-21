@@ -38,6 +38,14 @@ impl Database {
         Ok(row)
     }
 
+    pub async fn get_user_by_username(&self, username: &str) -> anyhow::Result<Option<User>> {
+        let row = sqlx::query_as::<_, User>("SELECT * FROM users WHERE username = ?")
+            .bind(username)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(row)
+    }
+
     pub async fn get_user_by_jellyfin_id(&self, jellyfin_user_id: &str) -> anyhow::Result<Option<User>> {
         let row = sqlx::query_as::<_, User>("SELECT * FROM users WHERE jellyfin_user_id = ?")
             .bind(jellyfin_user_id)
@@ -59,6 +67,31 @@ impl Database {
             .bind(user.permissions)
             .bind(&user.created_at)
             .bind(&user.updated_at)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn update_user(&self, user: &User) -> anyhow::Result<()> {
+        sqlx::query(
+            "UPDATE users SET username = ?, display_name = ?, email = ?, avatar_url = ?, jellyfin_user_id = ?, permissions = ?, updated_at = ? WHERE id = ?"
+        )
+            .bind(&user.username)
+            .bind(&user.display_name)
+            .bind(&user.email)
+            .bind(&user.avatar_url)
+            .bind(&user.jellyfin_user_id)
+            .bind(user.permissions)
+            .bind(&user.updated_at)
+            .bind(&user.id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn delete_user(&self, id: &str) -> anyhow::Result<()> {
+        sqlx::query("DELETE FROM users WHERE id = ?")
+            .bind(id)
             .execute(&self.pool)
             .await?;
         Ok(())
@@ -138,7 +171,7 @@ impl Database {
 
     pub async fn create_media(&self, media: &Media) -> anyhow::Result<()> {
         sqlx::query(
-            "INSERT INTO media (id, tmdb_id, tvdb_id, musicbrainz_id, isbn, media_type, title, overview, poster_url, backdrop_url, release_date, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO media (id, tmdb_id, tvdb_id, musicbrainz_id, isbn, media_type, title, overview, poster_url, backdrop_url, release_date, status, rating, genres, season_count, episode_count, artist_name, author_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
             .bind(&media.id)
             .bind(media.tmdb_id)
@@ -152,6 +185,12 @@ impl Database {
             .bind(&media.backdrop_url)
             .bind(&media.release_date)
             .bind(&media.status)
+            .bind(media.rating)
+            .bind(&media.genres)
+            .bind(media.season_count)
+            .bind(media.episode_count)
+            .bind(&media.artist_name)
+            .bind(&media.author_name)
             .bind(&media.created_at)
             .bind(&media.updated_at)
             .execute(&self.pool)
@@ -167,6 +206,14 @@ impl Database {
         Ok(rows)
     }
 
+    pub async fn list_requests_by_status(&self, status: &str) -> anyhow::Result<Vec<MediaRequest>> {
+        let rows = sqlx::query_as::<_, MediaRequest>("SELECT * FROM media_requests WHERE status = ? ORDER BY created_at DESC")
+            .bind(status)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(rows)
+    }
+
     pub async fn get_request(&self, id: &str) -> anyhow::Result<Option<MediaRequest>> {
         let row = sqlx::query_as::<_, MediaRequest>("SELECT * FROM media_requests WHERE id = ?")
             .bind(id)
@@ -177,7 +224,7 @@ impl Database {
 
     pub async fn create_request(&self, request: &MediaRequest) -> anyhow::Result<()> {
         sqlx::query(
-            "INSERT INTO media_requests (id, user_id, media_type, media_id, title, status, external_service_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO media_requests (id, user_id, media_type, media_id, title, status, download_status, external_service_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
             .bind(&request.id)
             .bind(&request.user_id)
@@ -185,6 +232,7 @@ impl Database {
             .bind(&request.media_id)
             .bind(&request.title)
             .bind(&request.status)
+            .bind(&request.download_status)
             .bind(&request.external_service_id)
             .bind(&request.created_at)
             .bind(&request.updated_at)
@@ -195,9 +243,10 @@ impl Database {
 
     pub async fn update_request(&self, request: &MediaRequest) -> anyhow::Result<()> {
         sqlx::query(
-            "UPDATE media_requests SET status = ?, external_service_id = ?, updated_at = ? WHERE id = ?"
+            "UPDATE media_requests SET status = ?, download_status = ?, external_service_id = ?, updated_at = ? WHERE id = ?"
         )
             .bind(&request.status)
+            .bind(&request.download_status)
             .bind(&request.external_service_id)
             .bind(&request.updated_at)
             .bind(&request.id)

@@ -16,9 +16,9 @@ pub struct LoginRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct JellyfinLoginRequest {
+    pub url: String,
     pub username: String,
-    pub jellyfin_url: String,
-    pub api_key: String,
+    pub password: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -86,7 +86,7 @@ async fn jellyfin_login(
     Json(req): Json<JellyfinLoginRequest>,
 ) -> Result<Json<AuthResponse>, (StatusCode, Json<serde_json::Value>)> {
     let (user, token) = state.auth_service
-        .jellyfin_auth(&state.db, &req.jellyfin_url, &req.api_key, &req.username)
+        .jellyfin_auth(&state.db, &req.url, &req.username, &req.password)
         .await
         .map_err(|e| {
             (

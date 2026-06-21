@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Film, Tv, Music, BookOpen, BookMarked, CheckCircle2, Clock, AlertCircle, XCircle } from "lucide-react";
 
 interface MediaItem {
@@ -40,9 +41,10 @@ export default function MediaCard({ item }: { item: MediaItem }) {
   const StatusIcon = status.icon;
 
   return (
-    <div
+    <Link
+      href={`/detail?id=${encodeURIComponent(item.id)}`}
       className="media-card"
-      onClick={() => window.location.href = `/${item.media_type}/${item.id}`}
+      style={{ textDecoration: "none", color: "inherit", display: "block" }}
     >
       <div className="media-card-poster">
         {item.poster_url ? (
@@ -52,7 +54,7 @@ export default function MediaCard({ item }: { item: MediaItem }) {
             loading="lazy"
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = "none";
-              (e.target as HTMLImageElement).parentElement!.querySelector(".placeholder")!.classList.remove("hidden");
+              (e.target as HTMLImageElement).parentElement!.querySelector(".media-card-poster-placeholder")!.classList.remove("hidden");
             }}
           />
         ) : null}
@@ -60,9 +62,9 @@ export default function MediaCard({ item }: { item: MediaItem }) {
           <TypeIcon size={48} strokeWidth={1} />
         </div>
 
-        {/* Status badge */}
+        {/* Status badge with backdrop-filter + text-shadow for readability */}
         <div className="media-card-status">
-          <span className={`badge ${status.className}`}>
+          <span className={`badge ${status.className}`} style={{ backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
             <StatusIcon size={12} />
             {status.label}
           </span>
@@ -80,12 +82,12 @@ export default function MediaCard({ item }: { item: MediaItem }) {
         {/* Hover overlay */}
         <div className="media-card-overlay">
           {item.overview && (
-            <p className="media-card-overview">
+            <p className="media-card-overview" style={{ fontSize: "0.75rem", lineHeight: 1.4, color: "rgba(255,255,255,0.85)", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" }}>
               {item.overview}
             </p>
           )}
           {item.rating && (
-            <div className="media-card-rating">
+            <div className="media-card-rating" style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "8px", fontSize: "0.8rem", color: "var(--jf-star)" }}>
               <span>★</span> {item.rating.toFixed(1)}
             </div>
           )}
@@ -95,9 +97,9 @@ export default function MediaCard({ item }: { item: MediaItem }) {
       <div className="media-card-info">
         <div className="media-card-title">{item.title}</div>
         {item.year && <div className="media-card-year">{item.year}</div>}
-        {item.artistName && <div className="media-card-subtitle">{item.artistName}</div>}
-        {item.authorName && <div className="media-card-subtitle">{item.authorName}</div>}
+        {item.artistName && <div className="media-card-subtitle" style={{ fontSize: "0.7rem", color: "var(--jf-text-secondary)" }}>{item.artistName}</div>}
+        {item.authorName && <div className="media-card-subtitle" style={{ fontSize: "0.7rem", color: "var(--jf-text-secondary)" }}>{item.authorName}</div>}
       </div>
-    </div>
+    </Link>
   );
 }

@@ -1,6 +1,5 @@
 use crate::db::Database;
 use crate::models::User;
-use argon2::Argon2;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -49,25 +48,43 @@ impl AuthService {
         Ok(token_data.claims)
     }
 
+    /// Jellyfin SSO: authenticate with username/password against Jellyfin API
     pub async fn jellyfin_auth(
         &self,
         db: &Database,
         jellyfin_url: &str,
-        api_key: &str,
         username: &str,
+        password: &str,
     ) -> anyhow::Result<(User, String)> {
-        // Jellyfin API: GET /Users?api_key=... to find user
         let client = reqwest::Client::new();
-        let users_url = format!("{}/Users?api_key={}", jellyfin_url.trim_end_matches('/'), api_key);
-        let resp = client.get(&users_url).send().await?;
-        let users: Vec<serde_json::Value> = resp.json().await?;
+        let auth_url = format!("{}/Users/AuthenticateByName", jellyfin_url.trim_end_matches('/'));
 
-        let jellyfin_user = users.iter().find(|u| {
-            u.get("Name").and_then(|n| n.as_str()) == Some(username)
-        }).ok_or_else(|| anyhow::anyhow!("User not found in Jellyfin"))?;
+        let auth_payload = serde_json::json!({
+            "Username": username,
+            "Pw": password,
+        });
 
-        let jellyfin_user_id = jellyfin_user.get("Id").and_then(|i| i.as_str()).unwrap_or("");
-        let display_name = jellyfin_user.get("Name").and_then(|n| n.as_str()).unwrap_or(username);
+        let resp = client.post(&auth_url)
+            .header("Content-Type", "application/json")
+            .header("X-Emby-Authorization", "MediaBrowser Client=\"OakSeerr\", Device=\"Server\", DeviceId=\"OakSeerr\", Version=\"0.1.0\"")
+            .json(&auth_payload)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(anyhow::anyhow!("Jellyfin authentication failed: HTTP {}", resp.status()));
+        }
+
+        let auth_data: serde_json::Value = resp.json().await?;
+        let jellyfin_user_id = auth_data.get("User")
+            .and_then(|u| u.get("Id"))
+            .and_then(|i| i.as_str())
+            .ok_or_else(|| anyhow::anyhow!("Could not parse Jellyfin user ID"))?;
+
+        let display_name = auth_data.get("User")
+            .and_then(|u| u.get("Name"))
+            .and_then(|n| n.as_str())
+            .unwrap_or(username);
 
         // Find or create local user
         let existing = db.get_user_by_jellyfin_id(jellyfin_user_id).await?;

@@ -18,6 +18,7 @@ pub struct RequestResponse {
     pub media_id: String,
     pub title: String,
     pub status: String,
+    pub download_status: String,
     pub external_service_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
@@ -32,6 +33,7 @@ impl From<MediaRequest> for RequestResponse {
             media_id: r.media_id,
             title: r.title,
             status: r.status,
+            download_status: r.download_status,
             external_service_id: r.external_service_id,
             created_at: r.created_at,
             updated_at: r.updated_at,
@@ -50,6 +52,7 @@ pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/", get(list_requests))
         .route("/", post(create_request))
+        .route("/status", get(get_requests_status))
         .route("/{id}", get(get_request))
         .route("/{id}/approve", post(approve_request))
         .route("/{id}/decline", post(decline_request))
@@ -138,4 +141,14 @@ async fn decline_request(
         })?;
 
     Ok(Json(RequestResponse::from(request)))
+}
+
+/// GET /api/v1/requests/status - returns all requests with download status
+async fn get_requests_status(
+    State(state): State<Arc<AppState>>,
+) -> Json<Vec<RequestResponse>> {
+    let requests = RequestService::get_all_with_status(&state.db)
+        .await
+        .unwrap_or_default();
+    Json(requests.into_iter().map(RequestResponse::from).collect())
 }

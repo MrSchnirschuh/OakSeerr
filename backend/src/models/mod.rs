@@ -21,6 +21,7 @@ pub struct MediaRequest {
     pub media_id: String,
     pub title: String,
     pub status: String, // pending, approved, declined, fulfilled
+    pub download_status: String, // none, queued, downloading, imported, failed
     pub external_service_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
@@ -40,6 +41,12 @@ pub struct Media {
     pub backdrop_url: Option<String>,
     pub release_date: Option<String>,
     pub status: String, // unknown, available, requested, processing
+    pub rating: Option<f64>,
+    pub genres: Option<String>, // JSON array stored as string
+    pub season_count: Option<i32>,
+    pub episode_count: Option<i32>,
+    pub artist_name: Option<String>,
+    pub author_name: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }

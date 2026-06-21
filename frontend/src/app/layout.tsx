@@ -2,10 +2,10 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import {
   Home, Film, Tv, Music, BookOpen, BookMarked,
-  ListChecks, Settings, LogOut, Menu, X, TrendingUp
+  ListChecks, Settings, LogOut, Menu, X, Search
 } from "lucide-react";
 import "./globals.css";
 
@@ -30,6 +30,8 @@ const navSections = [
   },
 ];
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -37,8 +39,14 @@ export default function RootLayout({
 }>) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // CSS Injection via <link> statt <style> — damit @import funktioniert
+  // CSS Injection via @layer — wraps injected CSS in a layer so it can't break layout
   useEffect(() => {
     const saved = localStorage.getItem("oakseerr_css_injection");
     if (saved) {
@@ -54,71 +62,55 @@ export default function RootLayout({
   }, []);
 
   function applyCssInjection(css: string) {
-    // Remove old injection
     const old = document.getElementById("oakseerr-css-injection");
     if (old) old.remove();
-    const oldReset = document.getElementById("oakseerr-css-reset");
-    if (oldReset) oldReset.remove();
 
     if (!css.trim()) return;
 
-    // Inject a CSS reset layer FIRST that protects the base layout
-    // This ensures the sidebar, main content, and app-layout always work
-    const resetStyle = document.createElement("style");
-    resetStyle.id = "oakseerr-css-reset";
-    resetStyle.textContent = `
-      /* Protect base layout from theme overrides */
-      .app-layout, .sidebar, .main-content, .sidebar-nav, .sidebar-item,
-      .sidebar-header, .sidebar-user, .media-card, .media-grid,
-      .card, .btn, .input, .tabs, .tab, .badge, .section-header,
-      .section-title, .settings-layout, .settings-nav, .settings-content,
-      .form-group, .form-label, .form-hint, .toast, .detail-content,
-      .detail-backdrop, .detail-info, .detail-poster, .detail-title,
-      .detail-meta, .detail-genres, .detail-overview, .media-card-poster,
-      .media-card-info, .media-card-title, .media-card-overlay,
-      .media-card-status, .media-card-genres, .sidebar-logo,
-      .sidebar-logo-text, .sidebar-section-label, .sidebar-item-icon,
-      .sidebar-user-avatar, .sidebar-user-name, .sidebar-user-role,
-      .sidebar-close-btn, .sidebar-user-logout, .mobile-header,
-      .mobile-logo, .mobile-menu-btn, .sidebar-overlay,
-      .skeleton, .progress-bar, .progress-bar-fill,
-      .status-dot, .genre-badge, .badge-available, .badge-primary,
-      .badge-success, .badge-warning, .badge-error,
-      .btn-primary, .btn-secondary, .btn-danger, .btn-sm {
-        all: revert-layer !important;
-      }
-      /* Ensure the app-layout is always flex */
-      .app-layout {
-        display: flex !important;
-        height: 100vh !important;
-      }
-      .sidebar {
-        width: var(--jf-sidebar-width, 240px) !important;
-        flex-shrink: 0 !important;
-      }
-      .main-content {
-        flex: 1 !important;
-        overflow-y: auto !important;
-      }
-    `;
-    document.head.appendChild(resetStyle);
-
-    // Check if it's an @import URL — inject as <link> for proper CORS handling
-    const importMatch = css.match(/@import\s+url\(['"]([^'"]+)['"]\)/);
-    if (importMatch) {
-      const link = document.createElement("link");
-      link.id = "oakseerr-css-injection";
-      link.rel = "stylesheet";
-      link.href = importMatch[1];
-      document.head.appendChild(link);
-    } else {
-      // Plain CSS — inject as <style>
-      const style = document.createElement("style");
-      style.id = "oakseerr-css-injection";
-      style.textContent = css;
-      document.head.appendChild(style);
-    }
+    // Wrap injected CSS in a @layer user-theme so it can't override layout
+    const style = document.createElement("style");
+    style.id = "oakseerr-css-injection";
+    style.textContent = `@layer user-theme {\n${css}\n}`;
+    document.head.appendChild(style);
   }
+
+  // Search with debounce
+  const handleSearchInput = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    if (!value.trim()) {
+      setSearchResults([]);
+      setSearchOpen(false);
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/media/search?q=${encodeURIComponent(value)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(Array.isArray(data) ? data.slice(0, 8) : []);
+          setSearchOpen(true);
+        }
+      } catch (e) {
+        setSearchResults([]);
+      }
+      setSearchLoading(false);
+    }, 300);
+  }, []);
+
+  // Close search on click outside
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   const IconComponent = ({ icon: Icon, size = 20 }: { icon: any; size?: number }) => (
     <Icon size={size} strokeWidth={1.5} />
@@ -136,10 +128,17 @@ export default function RootLayout({
             <div className="sidebar-header">
               <div className="sidebar-logo">
                 <div className="sidebar-logo-icon">
-                  <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                    <path d="M14 2L2 8v12l12 6 12-6V8L14 2z" fill="var(--jf-primary)" opacity="0.2"/>
-                    <path d="M14 6L6 10v8l8 4 8-4v-8l-8-4z" fill="var(--jf-primary)" opacity="0.4"/>
-                    <path d="M14 10l-4 2v4l4 2 4-2v-4l-4-2z" fill="var(--jf-primary)"/>
+                  {/* Oak tree SVG logo in #00a4dc */}
+                  <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    {/* Trunk */}
+                    <rect x="12" y="16" width="4" height="10" rx="1" fill="#00a4dc" opacity="0.6"/>
+                    {/* Canopy layers */}
+                    <ellipse cx="14" cy="8" rx="10" ry="8" fill="#00a4dc" opacity="0.3"/>
+                    <ellipse cx="14" cy="7" rx="8" ry="6" fill="#00a4dc" opacity="0.5"/>
+                    <ellipse cx="14" cy="6" rx="5" ry="4" fill="#00a4dc"/>
+                    {/* Acorn */}
+                    <ellipse cx="20" cy="20" rx="2.5" ry="3" fill="#00a4dc" opacity="0.7"/>
+                    <rect x="19" y="17" width="2" height="1.5" rx="0.5" fill="#00a4dc" opacity="0.8"/>
                   </svg>
                 </div>
                 <span className="sidebar-logo-text">OakSeerr</span>
@@ -147,6 +146,55 @@ export default function RootLayout({
               <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>
                 <X size={20} />
               </button>
+            </div>
+
+            {/* Search bar in sidebar */}
+            <div style={{ padding: "8px 12px" }} ref={searchRef}>
+              <div style={{ position: "relative" }}>
+                <Search size={16} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--jf-text-secondary)", pointerEvents: "none" }} />
+                <input
+                  className="input"
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => handleSearchInput(e.target.value)}
+                  onFocus={() => { if (searchResults.length > 0) setSearchOpen(true); }}
+                  style={{ paddingLeft: "32px", paddingTop: "8px", paddingBottom: "8px", fontSize: "0.8rem" }}
+                />
+                {searchLoading && (
+                  <div style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)" }}>
+                    <div className="skeleton" style={{ width: "14px", height: "14px", borderRadius: "50%" }} />
+                  </div>
+                )}
+                {/* Search dropdown */}
+                {searchOpen && (
+                  <div className="search-dropdown">
+                    {searchResults.length === 0 ? (
+                      <div className="search-dropdown-empty">No results found</div>
+                    ) : (
+                      searchResults.map((item: any) => (
+                        <Link
+                          key={item.id}
+                          href={`/media/${item.id}`}
+                          className="search-dropdown-item"
+                          onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
+                        >
+                          {item.poster_url ? (
+                            <img src={item.poster_url} alt="" />
+                          ) : (
+                            <div style={{ width: "36px", height: "54px", borderRadius: "4px", background: "rgba(255,255,255,0.06)", flexShrink: 0 }} />
+                          )}
+                          <div className="search-dropdown-item-info">
+                            <div className="search-dropdown-item-title">{item.title}</div>
+                            <div className="search-dropdown-item-sub">
+                              {item.year || ""} {item.media_type ? `· ${item.media_type}` : ""}
+                            </div>
+                          </div>
+                        </Link>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             <nav className="sidebar-nav">
@@ -195,9 +243,12 @@ export default function RootLayout({
               </button>
               <div className="mobile-logo">
                 <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
-                  <path d="M14 2L2 8v12l12 6 12-6V8L14 2z" fill="var(--jf-primary)" opacity="0.2"/>
-                  <path d="M14 6L6 10v8l8 4 8-4v-8l-8-4z" fill="var(--jf-primary)" opacity="0.4"/>
-                  <path d="M14 10l-4 2v4l4 2 4-2v-4l-4-2z" fill="var(--jf-primary)"/>
+                  <rect x="12" y="16" width="4" height="10" rx="1" fill="#00a4dc" opacity="0.6"/>
+                  <ellipse cx="14" cy="8" rx="10" ry="8" fill="#00a4dc" opacity="0.3"/>
+                  <ellipse cx="14" cy="7" rx="8" ry="6" fill="#00a4dc" opacity="0.5"/>
+                  <ellipse cx="14" cy="6" rx="5" ry="4" fill="#00a4dc"/>
+                  <ellipse cx="20" cy="20" rx="2.5" ry="3" fill="#00a4dc" opacity="0.7"/>
+                  <rect x="19" y="17" width="2" height="1.5" rx="0.5" fill="#00a4dc" opacity="0.8"/>
                 </svg>
                 <span>OakSeerr</span>
               </div>

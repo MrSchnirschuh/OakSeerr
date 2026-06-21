@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Music } from "lucide-react";
+import { Search, Music, TrendingUp, Library } from "lucide-react";
 import MediaCard from "@/components/MediaCard";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
@@ -10,14 +10,20 @@ export default function MusicPage() {
   const [search, setSearch] = useState("");
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<"trending" | "library">("trending");
 
   useEffect(() => {
     async function fetchMusic() {
       setLoading(true);
       try {
-        const url = search.trim()
-          ? `${API_BASE}/api/v1/media/search?q=${encodeURIComponent(search)}&media_type=music`
-          : `${API_BASE}/api/v1/media/trending?media_type=music`;
+        let url: string;
+        if (search.trim()) {
+          url = `${API_BASE}/api/v1/media/search?q=${encodeURIComponent(search)}&media_type=music`;
+        } else if (view === "library") {
+          url = `${API_BASE}/api/v1/media/library?media_type=music`;
+        } else {
+          url = `${API_BASE}/api/v1/media/trending?media_type=music`;
+        }
         const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
@@ -31,7 +37,7 @@ export default function MusicPage() {
       setLoading(false);
     }
     fetchMusic();
-  }, [search]);
+  }, [search, view]);
 
   return (
     <div>
@@ -40,15 +46,31 @@ export default function MusicPage() {
           <Music size={22} style={{ marginRight: "8px", verticalAlign: "middle" }} />
           Music
         </h1>
-        <div style={{ position: "relative", maxWidth: "300px", width: "100%" }}>
-          <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--jf-text-secondary)", pointerEvents: "none" }} />
-          <input
-            className="input"
-            placeholder="Search artists, albums..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ paddingLeft: "36px" }}
-          />
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "4px" }}>
+            <button
+              className={`btn btn-sm ${view === "trending" ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => setView("trending")}
+            >
+              <TrendingUp size={14} /> Trending
+            </button>
+            <button
+              className={`btn btn-sm ${view === "library" ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => setView("library")}
+            >
+              <Library size={14} /> Library
+            </button>
+          </div>
+          <div style={{ position: "relative", maxWidth: "300px", width: "100%" }}>
+            <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--jf-text-secondary)", pointerEvents: "none" }} />
+            <input
+              className="input"
+              placeholder="Search artists, albums..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ paddingLeft: "36px" }}
+            />
+          </div>
         </div>
       </div>
 

@@ -24,6 +24,12 @@ CREATE TABLE IF NOT EXISTS media (
     backdrop_url TEXT,
     release_date TEXT,
     status TEXT NOT NULL DEFAULT 'unknown' CHECK(status IN ('unknown', 'available', 'requested', 'processing')),
+    rating REAL,
+    genres TEXT,
+    season_count INTEGER,
+    episode_count INTEGER,
+    artist_name TEXT,
+    author_name TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -35,6 +41,7 @@ CREATE TABLE IF NOT EXISTS media_requests (
     media_id TEXT NOT NULL REFERENCES media(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'declined', 'fulfilled')),
+    download_status TEXT NOT NULL DEFAULT 'none' CHECK(download_status IN ('none', 'queued', 'downloading', 'imported', 'failed')),
     external_service_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -61,3 +68,6 @@ INSERT OR IGNORE INTO settings (key, value) VALUES ('app_name', 'OakSeerr');
 INSERT OR IGNORE INTO settings (key, value) VALUES ('app_theme', 'default');
 INSERT OR IGNORE INTO settings (key, value) VALUES ('jellyfin_url', '');
 INSERT OR IGNORE INTO settings (key, value) VALUES ('sso_enabled', 'false');
+INSERT OR IGNORE INTO settings (key, value) VALUES ('TMDB_API_KEY', '1f0e6b3b5c5a5b5d5e5f5a5b5c5d5e5f');
+INSERT OR IGNORE INTO settings (key, value) VALUES ('LASTFM_API_KEY', '5b8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c');
+INSERT OR IGNORE INTO settings (key, value) VALUES ('COMICVINE_API_KEY', '5b8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c');
