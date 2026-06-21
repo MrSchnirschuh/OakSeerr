@@ -17,7 +17,7 @@ export default function ComicsPage() {
       try {
         const url = search.trim()
           ? `${API_BASE}/api/v1/media/search?q=${encodeURIComponent(search)}&media_type=comic`
-          : `${API_BASE}/api/v1/media/search?q=&media_type=comic`;
+          : `${API_BASE}/api/v1/media/trending?media_type=comic`;
         const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();

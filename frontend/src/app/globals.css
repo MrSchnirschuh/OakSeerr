@@ -208,6 +208,16 @@ textarea.input {
   color: #66bb6a;
 }
 
+/* Available badge — improved readability on any background */
+.badge-available {
+  background: rgba(67, 160, 71, 0.25);
+  color: #81c784;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(67, 160, 71, 0.3);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
 .badge-warning {
   background: rgba(245, 127, 23, 0.2);
   color: #ffb74d;

@@ -16,8 +16,8 @@ export default function MoviesPage() {
       setLoading(true);
       try {
         const url = search.trim()
-          ? `${API_BASE}/api/v1/media/search?q=${encodeURIComponent(search)}&media_type=movie`
-          : `${API_BASE}/api/v1/media/search?q=&media_type=movie`;
+          ? `${API_BASE}/api/v1/media/search?q=${encodeURIComponent(search)}&media_type=radarr`
+          : `${API_BASE}/api/v1/media/trending?media_type=movie`;
         const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();

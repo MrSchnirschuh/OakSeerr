@@ -23,8 +23,6 @@ const integrationTypes = [
   { value: "lidarr", label: "Lidarr", desc: "Music management" },
   { value: "readarr", label: "Readarr", desc: "Book management" },
   { value: "mylar3", label: "Mylar3", desc: "Comic management" },
-  { value: "sabnzbd", label: "SABnzbd", desc: "Usenet downloader" },
-  { value: "prowlarr", label: "Prowlarr", desc: "Indexer manager" },
 ];
 
 const navItems = [
@@ -496,7 +494,7 @@ export default function SettingsPage() {
                   Supports: Movies, TV Shows, Music, Books, Comics
                 </p>
                 <p style={{ color: "var(--jf-text-secondary)", fontSize: "0.875rem" }}>
-                  Integrations: Radarr, Sonarr, Lidarr, Readarr, Mylar3, SABnzbd, Prowlarr
+                  Integrations: Radarr, Sonarr, Lidarr, Readarr, Mylar3
                 </p>
               </div>
             </div>

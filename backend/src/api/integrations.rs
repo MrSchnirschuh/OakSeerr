@@ -151,42 +151,8 @@ async fn test_integration(
         .unwrap();
 
     let result = match integration.integration_type.as_str() {
-        "radarr" | "sonarr" | "lidarr" | "readarr" => {
+        "radarr" | "sonarr" | "lidarr" | "readarr" | "mylar3" => {
             let url = format!("{}/api/v3/system/status", integration.base_url.trim_end_matches('/'));
-            let res = client.get(&url)
-                .header("X-Api-Key", &integration.api_key)
-                .send()
-                .await;
-            match res {
-                Ok(r) if r.status().is_success() => Ok("Connected successfully"),
-                Ok(r) => Err(format!("HTTP {}", r.status())),
-                Err(e) => Err(format!("Connection failed: {}", e)),
-            }
-        }
-        "mylar3" => {
-            let url = format!("{}/api/v1/system/status", integration.base_url.trim_end_matches('/'));
-            let res = client.get(&url)
-                .header("X-Api-Key", &integration.api_key)
-                .send()
-                .await;
-            match res {
-                Ok(r) if r.status().is_success() => Ok("Connected successfully"),
-                Ok(r) => Err(format!("HTTP {}", r.status())),
-                Err(e) => Err(format!("Connection failed: {}", e)),
-            }
-        }
-        "sabnzbd" => {
-            let url = format!("{}/api?mode=version&apikey={}&output=json", 
-                integration.base_url.trim_end_matches('/'), integration.api_key);
-            let res = client.get(&url).send().await;
-            match res {
-                Ok(r) if r.status().is_success() => Ok("Connected successfully"),
-                Ok(r) => Err(format!("HTTP {}", r.status())),
-                Err(e) => Err(format!("Connection failed: {}", e)),
-            }
-        }
-        "prowlarr" => {
-            let url = format!("{}/api/v1/system/status", integration.base_url.trim_end_matches('/'));
             let res = client.get(&url)
                 .header("X-Api-Key", &integration.api_key)
                 .send()

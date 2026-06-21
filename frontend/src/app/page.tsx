@@ -27,9 +27,15 @@ export default function Home() {
       setLoading(true);
       try {
         const mediaType = activeTab === "Trending" ? "" : activeTab.toLowerCase();
-        const url = mediaType
-          ? `${API_BASE}/api/v1/media/search?q=&media_type=${mediaType}`
-          : `${API_BASE}/api/v1/media/trending`;
+        let url: string;
+
+        if (mediaType) {
+          // Fetch library items for specific media type
+          url = `${API_BASE}/api/v1/media/trending?media_type=${mediaType}`;
+        } else {
+          // Fetch all trending
+          url = `${API_BASE}/api/v1/media/trending`;
+        }
 
         const [mediaRes, requestsRes] = await Promise.all([
           fetch(url),
@@ -127,7 +133,7 @@ export default function Home() {
           <p style={{ color: "var(--jf-text-secondary)" }}>
             {activeTab === "Trending"
               ? "No trending media found. Configure your integrations in Settings to see your media."
-              : `No ${activeTab.toLowerCase()} found. Add a ${activeTab.toLowerCase()} integration in Settings.`}
+              : `No ${activeTab.toLowerCase()} found. Add a ${activeTab === "Movies" ? "Radarr" : activeTab === "TV" ? "Sonarr" : activeTab === "Music" ? "Lidarr" : activeTab === "Books" ? "Readarr" : "Mylar3"} integration in Settings.`}
           </p>
         </div>
       ) : (

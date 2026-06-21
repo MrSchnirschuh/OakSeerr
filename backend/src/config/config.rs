@@ -25,7 +25,12 @@ impl Config {
             .unwrap_or_else(|_| format!("0.0.0.0:{}", port));
 
         Ok(Config {
-            database_url: env::var("DATABASE_URL")
+            database_url: env::var("OAKSEERR_DB_PATH")
+                .map(|p| {
+                    if p.starts_with("sqlite://") { p }
+                    else { format!("sqlite://{}?mode=rwc", p) }
+                })
+                .or_else(|_| env::var("DATABASE_URL"))
                 .unwrap_or_else(|_| "sqlite:///app/config/oakseerr.db?mode=rwc".to_string()),
             jwt_secret: env::var("JWT_SECRET")
                 .unwrap_or_else(|_| uuid::Uuid::new_v4().to_string()),

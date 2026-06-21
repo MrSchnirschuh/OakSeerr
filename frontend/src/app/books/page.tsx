@@ -17,7 +17,7 @@ export default function BooksPage() {
       try {
         const url = search.trim()
           ? `${API_BASE}/api/v1/media/search?q=${encodeURIComponent(search)}&media_type=book`
-          : `${API_BASE}/api/v1/media/search?q=&media_type=book`;
+          : `${API_BASE}/api/v1/media/trending?media_type=book`;
         const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();

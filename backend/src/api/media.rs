@@ -17,6 +17,12 @@ pub struct MediaItem {
     pub backdrop_url: Option<String>,
     pub overview: Option<String>,
     pub status: String,
+    pub rating: Option<f64>,
+    pub genres: Option<Vec<String>>,
+    pub season_count: Option<i32>,
+    pub episode_count: Option<i32>,
+    pub artist_name: Option<String>,
+    pub author_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -25,11 +31,27 @@ pub struct SearchQuery {
     pub media_type: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct TrendingQuery {
+    pub media_type: Option<String>,
+}
+
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/search", get(search_media))
         .route("/{id}", get(get_media))
         .route("/trending", get(get_trending))
+}
+
+fn map_media_type_to_integration(media_type: &str) -> &str {
+    match media_type {
+        "movie" => "radarr",
+        "tv" => "sonarr",
+        "music" => "lidarr",
+        "book" => "readarr",
+        "comic" => "mylar3",
+        _ => media_type,
+    }
 }
 
 async fn search_media(
@@ -42,7 +64,8 @@ async fn search_media(
     for integration in &integrations {
         if !integration.enabled { continue; }
         let media_type = query.media_type.as_deref().unwrap_or("");
-        if !media_type.is_empty() && integration.integration_type != media_type {
+        let integration_type = if media_type.is_empty() { "" } else { map_media_type_to_integration(media_type) };
+        if !integration_type.is_empty() && integration.integration_type != integration_type {
             continue;
         }
         if let Ok(items) = search_via_integration(integration, &query.q).await {
@@ -67,6 +90,12 @@ async fn get_media(
             backdrop_url: media.backdrop_url,
             overview: media.overview,
             status: media.status,
+            rating: None,
+            genres: None,
+            season_count: None,
+            episode_count: None,
+            artist_name: None,
+            author_name: None,
         }));
     }
 
@@ -75,12 +104,27 @@ async fn get_media(
 
 async fn get_trending(
     State(state): State<Arc<AppState>>,
+    Query(query): Query<TrendingQuery>,
 ) -> Json<Vec<MediaItem>> {
     let integrations = state.db.list_integrations().await.unwrap_or_default();
     let mut results = Vec::new();
 
     for integration in &integrations {
         if !integration.enabled { continue; }
+        // Filter by media_type if specified
+        if let Some(ref mt) = query.media_type {
+            let integration_type = match mt.as_str() {
+                "movie" => "radarr",
+                "tv" => "sonarr",
+                "music" => "lidarr",
+                "book" => "readarr",
+                "comic" => "mylar3",
+                _ => "",
+            };
+            if integration.integration_type != integration_type {
+                continue;
+            }
+        }
         if let Ok(items) = get_trending_via_integration(integration).await {
             results.extend(items);
         }
@@ -141,6 +185,13 @@ async fn search_via_integration(
             .and_then(|imgs| imgs.iter().find(|img| img["coverType"].as_str() == Some("poster")))
             .and_then(|img| img["remoteUrl"].as_str().map(|s| s.to_string()))
             .or(item["posterUrl"].as_str().map(|s| s.to_string()));
+        let rating = item["ratings"].as_object()
+            .and_then(|r| r["value"].as_f64())
+            .or(item["rating"].as_f64());
+        let genres = item["genres"].as_array()
+            .map(|g| g.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
+        let artist_name = item["artistName"].as_str().map(|s| s.to_string());
+        let author_name = item["authorName"].as_str().map(|s| s.to_string());
 
         MediaItem {
             id: format!("{}-{}", media_type, item["id"].as_i64().unwrap_or(i as i64)),
@@ -151,6 +202,12 @@ async fn search_via_integration(
             backdrop_url: None,
             overview,
             status: "unknown".to_string(),
+            rating,
+            genres,
+            season_count: None,
+            episode_count: None,
+            artist_name,
+            author_name,
         }
     }).collect())
 }
@@ -190,7 +247,7 @@ async fn get_trending_via_integration(
         _ => "unknown",
     };
 
-    Ok(items.iter().take(10).map(|item| {
+    Ok(items.iter().take(20).map(|item| {
         let title = item["title"].as_str()
             .or(item["name"].as_str())
             .or(item["seriesName"].as_str())
@@ -206,6 +263,13 @@ async fn get_trending_via_integration(
             .and_then(|imgs| imgs.iter().find(|img| img["coverType"].as_str() == Some("poster")))
             .and_then(|img| img["remoteUrl"].as_str().map(|s| s.to_string()))
             .or(item["posterUrl"].as_str().map(|s| s.to_string()));
+        let rating = item["ratings"].as_object()
+            .and_then(|r| r["value"].as_f64())
+            .or(item["rating"].as_f64());
+        let genres = item["genres"].as_array()
+            .map(|g| g.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
+        let artist_name = item["artistName"].as_str().map(|s| s.to_string());
+        let author_name = item["authorName"].as_str().map(|s| s.to_string());
 
         MediaItem {
             id: format!("{}-{}", media_type, item["id"].as_i64().unwrap_or(0)),
@@ -216,6 +280,12 @@ async fn get_trending_via_integration(
             backdrop_url: None,
             overview,
             status: "available".to_string(),
+            rating,
+            genres,
+            season_count: None,
+            episode_count: None,
+            artist_name,
+            author_name,
         }
     }).collect())
 }

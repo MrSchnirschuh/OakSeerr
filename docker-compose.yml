@@ -1,22 +1,129 @@
 services:
-  oakseerr:
-    image: ghcr.io/mrschnirschuh/oakseerr:latest
-    container_name: oakseerr
+  permissions:
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+    cap_drop:
+      - ALL
+    configs:
+      - mode: 320
+        source: permissions_actions_data
+        target: /script/actions.json
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1024M
+    entrypoint:
+      - python3
+      - /script/permissions.py
     environment:
-      - PUID=568
-      - PGID=568
-      - PORT=5055
-      - TZ=Europe/Berlin
-    ports:
-      - "5055:5055"
-    restart: unless-stopped
-    user: "568:568"
-    volumes:
-      - /mnt/.ix-apps/app_mounts/oakseerr/config:/app/config
-      - /mnt/.ix-apps/app_mounts/oakseerr/cache:/app/cache
+      GID: '568'
+      GROUP_ID: '568'
+      NVIDIA_VISIBLE_DEVICES: void
+      PGID: '568'
+      PUID: '568'
+      TZ: Europe/Berlin
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+    group_add:
+      - 568
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5055/health"]
+      disable: True
+    image: ixsystems/container-utils:1.0.2
+    network_mode: none
+    platform: linux/amd64
+    privileged: False
+    restart: on-failure:1
+    security_opt:
+      - no-new-privileges=true
+    stdin_open: False
+    tty: False
+    user: '0:0'
+    volumes:
+      - bind:
+          create_host_path: False
+          propagation: rprivate
+        read_only: False
+        source: /mnt/.ix-apps/app_mounts/oakseerr/config
+        target: /mnt/permission/config
+        type: bind
+
+  oakseerr:
+    cap_drop:
+      - ALL
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2048M
+    environment:
+      GID: '568'
+      GROUP_ID: '568'
+      NVIDIA_VISIBLE_DEVICES: void
+      PGID: '568'
+      PORT: '5055'
+      PUID: '568'
+      TZ: Europe/Berlin
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+    group_add:
+      - 568
+    healthcheck:
       interval: 30s
-      timeout: 10s
+      retries: 5
+      start_interval: 2s
       start_period: 15s
-      retries: 3
+      test:
+        - CMD
+        - wget
+        - '--quiet'
+        - '--spider'
+        - http://127.0.0.1:5055/health
+      timeout: 5s
+    image: ghcr.io/mrschnirschuh/oakseerr:latest
+    platform: linux/amd64
+    ports:
+      - mode: ingress
+        protocol: tcp
+        published: 5055
+        target: 5055
+    privileged: False
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges=true
+    stdin_open: False
+    tty: False
+    user: '568:568'
+    volumes:
+      - bind:
+          create_host_path: False
+          propagation: rprivate
+        read_only: False
+        source: /mnt/.ix-apps/app_mounts/oakseerr/config
+        target: /app/config
+        type: bind
+      - bind:
+          create_host_path: False
+          propagation: rprivate
+        read_only: False
+        source: /mnt/.ix-apps/app_mounts/oakseerr/cache
+        target: /app/cache
+        type: bind
+
+configs:
+  permissions_actions_data:
+    content: >-
+      [{"read_only": false, "mount_path": "/mnt/permission/config",
+      "is_temporary": false, "identifier": "config", "recursive": false, "mode":
+      "check", "uid": 568, "gid": 568, "chmod": null}]
+
+volumes: {}

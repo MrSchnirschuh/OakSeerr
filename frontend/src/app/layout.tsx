@@ -5,8 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   Home, Film, Tv, Music, BookOpen, BookMarked,
-  ListChecks, Settings, LogOut, User,
-  Menu, X, Palette, Code
+  ListChecks, Settings, LogOut, Menu, X, TrendingUp
 } from "lucide-react";
 import "./globals.css";
 
@@ -38,46 +37,45 @@ export default function RootLayout({
 }>) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [cssInjection, setCssInjection] = useState("");
 
-  // Load CSS injection on mount
+  // CSS Injection via <link> statt <style> — damit @import funktioniert
   useEffect(() => {
     const saved = localStorage.getItem("oakseerr_css_injection");
     if (saved) {
-      setCssInjection(saved);
+      applyCssInjection(saved);
     }
-  }, []);
 
-  // Apply CSS injection
-  useEffect(() => {
-    let styleEl = document.getElementById("oakseerr-css-injection") as HTMLStyleElement | null;
-    if (cssInjection) {
-      if (!styleEl) {
-        styleEl = document.createElement("style");
-        styleEl.id = "oakseerr-css-injection";
-        document.head.appendChild(styleEl);
-      }
-      styleEl.textContent = cssInjection;
-    } else {
-      if (styleEl) {
-        styleEl.remove();
-      }
-    }
-  }, [cssInjection]);
-
-  // Listen for CSS injection changes from settings
-  useEffect(() => {
     const handler = () => {
       const saved = localStorage.getItem("oakseerr_css_injection");
-      setCssInjection(saved || "");
+      applyCssInjection(saved || "");
     };
-    window.addEventListener("storage", handler);
     window.addEventListener("css-injection-changed", handler);
-    return () => {
-      window.removeEventListener("storage", handler);
-      window.removeEventListener("css-injection-changed", handler);
-    };
+    return () => window.removeEventListener("css-injection-changed", handler);
   }, []);
+
+  function applyCssInjection(css: string) {
+    // Remove old injection
+    const old = document.getElementById("oakseerr-css-injection");
+    if (old) old.remove();
+
+    if (!css.trim()) return;
+
+    // Check if it's an @import URL — inject as <link> for proper CORS handling
+    const importMatch = css.match(/@import\s+url\(['"]([^'"]+)['"]\)/);
+    if (importMatch) {
+      const link = document.createElement("link");
+      link.id = "oakseerr-css-injection";
+      link.rel = "stylesheet";
+      link.href = importMatch[1];
+      document.head.appendChild(link);
+    } else {
+      // Plain CSS — inject as <style>
+      const style = document.createElement("style");
+      style.id = "oakseerr-css-injection";
+      style.textContent = css;
+      document.head.appendChild(style);
+    }
+  }
 
   const IconComponent = ({ icon: Icon, size = 20 }: { icon: any; size?: number }) => (
     <Icon size={size} strokeWidth={1.5} />
@@ -87,12 +85,10 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <div className="app-layout">
-          {/* Mobile overlay */}
           {sidebarOpen && (
             <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
           )}
 
-          {/* Sidebar */}
           <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
             <div className="sidebar-header">
               <div className="sidebar-logo">
@@ -137,7 +133,6 @@ export default function RootLayout({
               ))}
             </nav>
 
-            {/* User area at bottom */}
             <div className="sidebar-user">
               <div className="sidebar-user-avatar">D</div>
               <div className="sidebar-user-info">
@@ -150,9 +145,7 @@ export default function RootLayout({
             </div>
           </aside>
 
-          {/* Main content */}
           <main className="main-content">
-            {/* Mobile hamburger */}
             <div className="mobile-header">
               <button className="mobile-menu-btn" onClick={() => setSidebarOpen(true)}>
                 <Menu size={24} />
