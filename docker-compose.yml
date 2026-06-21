@@ -1,4 +1,76 @@
+configs:
+  permissions_actions_data:
+    content: >-
+      [{"read_only": false, "mount_path": "/mnt/permission/config",
+      "is_temporary": false, "identifier": "config", "recursive": false, "mode":
+      "check", "uid": 568, "gid": 568, "chmod": null}]
 services:
+  oakseerr:
+    cap_drop:
+      - ALL
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2048M
+    environment:
+      GID: '568'
+      GROUP_ID: '568'
+      NVIDIA_VISIBLE_DEVICES: void
+      PGID: '568'
+      PORT: '5055'
+      PUID: '568'
+      TZ: Europe/Berlin
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+    group_add:
+      - 568
+    healthcheck:
+      interval: 30s
+      retries: 5
+      start_interval: 2s
+      start_period: 15s
+      test:
+        - CMD
+        - wget
+        - '--quiet'
+        - '--spider'
+        - http://127.0.0.1:5055/api/health
+      timeout: 5s
+    image: ghcr.io/mrschnirschuh/oakseerr:latest
+    platform: linux/amd64
+    ports:
+      - mode: ingress
+        protocol: tcp
+        published: 5055
+        target: 5055
+    privileged: False
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges=true
+    stdin_open: False
+    tty: False
+    user: '568:568'
+    volumes:
+      - bind:
+          create_host_path: False
+          propagation: rprivate
+        read_only: False
+        source: /mnt/.ix-apps/app_mounts/oakseerr/config
+        target: /app/config
+        type: bind
+      - bind:
+          create_host_path: False
+          propagation: rprivate
+        read_only: False
+        source: /mnt/.ix-apps/app_mounts/oakseerr/cache
+        target: /app/cache
+        type: bind
   permissions:
     cap_add:
       - CHOWN
@@ -51,79 +123,66 @@ services:
         source: /mnt/.ix-apps/app_mounts/oakseerr/config
         target: /mnt/permission/config
         type: bind
-
-  oakseerr:
-    cap_drop:
-      - ALL
-    depends_on:
-      permissions:
-        condition: service_completed_successfully
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2048M
-    environment:
-      GID: '568'
-      GROUP_ID: '568'
-      NVIDIA_VISIBLE_DEVICES: void
-      PGID: '568'
-      PORT: '5055'
-      PUID: '568'
-      TZ: Europe/Berlin
-      UID: '568'
-      UMASK: '002'
-      UMASK_SET: '002'
-      USER_ID: '568'
-    group_add:
-      - 568
-    healthcheck:
-      interval: 30s
-      retries: 5
-      start_interval: 2s
-      start_period: 15s
-      test:
-        - CMD
-        - wget
-        - '--quiet'
-        - '--spider'
-        - http://127.0.0.1:5055/health
-      timeout: 5s
-    image: ghcr.io/mrschnirschuh/oakseerr:latest
-    platform: linux/amd64
-    ports:
-      - mode: ingress
-        protocol: tcp
-        published: 5055
-        target: 5055
-    privileged: False
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges=true
-    stdin_open: False
-    tty: False
-    user: '568:568'
-    volumes:
-      - bind:
-          create_host_path: False
-          propagation: rprivate
-        read_only: False
-        source: /mnt/.ix-apps/app_mounts/oakseerr/config
-        target: /app/config
-        type: bind
-      - bind:
-          create_host_path: False
-          propagation: rprivate
-        read_only: False
-        source: /mnt/.ix-apps/app_mounts/oakseerr/cache
-        target: /app/cache
-        type: bind
-
-configs:
-  permissions_actions_data:
-    content: >-
-      [{"read_only": false, "mount_path": "/mnt/permission/config",
-      "is_temporary": false, "identifier": "config", "recursive": false, "mode":
-      "check", "uid": 568, "gid": 568, "chmod": null}]
-
 volumes: {}
+x-notes: >
+  # OakSeerr - All-in-one media request manager for Jellyfin
+
+
+  ## Security
+
+
+  **Read the following security precautions to ensure that you wish to continue
+  using this application.**
+
+
+  ---
+
+
+  ### Container: [oakseerr]
+
+
+  #### Running user/group(s)
+
+
+  - User: 568
+
+  - Group: 568
+
+  - Supplementary Groups: apps
+
+
+  ---
+
+
+  ### Container: [permissions]
+
+
+  **This container is short-lived.**
+
+
+  #### Running user/group(s)
+
+
+  - User: root
+
+  - Group: root
+
+  - Supplementary Groups: apps
+
+
+  ---
+
+
+  ## Bug Reports and Feature Requests
+
+
+  If you find a bug in this app or have an idea for a new feature, please file
+  an issue at
+
+  https://github.com/MrSchnirschuh/OakSeerr/issues
+x-portals:
+  - host: 0.0.0.0
+    name: Web UI
+    path: /
+    port: 5055
+    scheme: http

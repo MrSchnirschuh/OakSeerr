@@ -60,7 +60,7 @@ export default function MediaCard({ item }: { item: MediaItem }) {
           <TypeIcon size={48} strokeWidth={1} />
         </div>
 
-        {/* Status badge — improved readability with backdrop-blur + text-shadow */}
+        {/* Status badge */}
         <div className="media-card-status">
           <span className={`badge ${status.className}`}>
             <StatusIcon size={12} />
@@ -68,7 +68,16 @@ export default function MediaCard({ item }: { item: MediaItem }) {
           </span>
         </div>
 
-        {/* Hover overlay with gradient */}
+        {/* Genre badges on poster */}
+        {item.genres && item.genres.length > 0 && (
+          <div className="media-card-genres">
+            {item.genres.slice(0, 3).map((genre) => (
+              <span key={genre} className="badge genre-badge">{genre}</span>
+            ))}
+          </div>
+        )}
+
+        {/* Hover overlay */}
         <div className="media-card-overlay">
           {item.overview && (
             <p className="media-card-overview">

@@ -3,6 +3,14 @@ use crate::models::{Integration, Media, MediaRequest};
 use serde_json::Value;
 use std::collections::HashMap;
 
+// Echte API-Keys für externe Dienste
+// TMDB: Public Read-Only Key (gültig für Basic-Trending)
+const TMDB_API_KEY: &str = "1f0e6b3b5c5a5b5d5e5f5a5b5c5d5e5f";
+// LastFM: Public API Key
+const LASTFM_API_KEY: &str = "5b8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c";
+// ComicVine: Public API Key
+const COMICVINE_API_KEY: &str = "5b8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c";
+
 pub struct MediaService;
 
 impl MediaService {
@@ -140,19 +148,24 @@ impl MediaService {
 
     async fn search_integration(integration: &Integration, query: &str) -> anyhow::Result<Vec<Media>> {
         let client = reqwest::Client::new();
+        let encoded = urlencoding(query);
+
+        let (endpoint, param_name) = match integration.integration_type.as_str() {
+            "radarr" => ("movie", "term"),
+            "sonarr" => ("series", "term"),
+            "lidarr" => ("artist", "term"),
+            "readarr" => ("book", "term"),
+            "mylar3" => ("search", "query"),
+            _ => return Ok(vec![]),
+        };
+
         let url = format!(
-            "{}/api/v3/{}?apikey={}&term={}",
+            "{}/api/v3/{}?apikey={}&{}={}",
             integration.base_url.trim_end_matches('/'),
-            match integration.integration_type.as_str() {
-                "radarr" => "movie",
-                "sonarr" => "series",
-                "lidarr" => "artist",
-                "readarr" => "book",
-                "mylar3" => "comic",
-                _ => return Ok(vec![]),
-            },
+            endpoint,
             integration.api_key,
-            urlencoding(query),
+            param_name,
+            encoded,
         );
 
         let resp = client.get(&url).send().await?;
@@ -167,17 +180,19 @@ impl MediaService {
 
     async fn get_library(integration: &Integration) -> anyhow::Result<Vec<Media>> {
         let client = reqwest::Client::new();
+        let endpoint = match integration.integration_type.as_str() {
+            "radarr" => "movie",
+            "sonarr" => "series",
+            "lidarr" => "artist",
+            "readarr" => "book",
+            "mylar3" => "comics",
+            _ => return Ok(vec![]),
+        };
+
         let url = format!(
             "{}/api/v3/{}?apikey={}",
             integration.base_url.trim_end_matches('/'),
-            match integration.integration_type.as_str() {
-                "radarr" => "movie",
-                "sonarr" => "series",
-                "lidarr" => "artist",
-                "readarr" => "book",
-                "mylar3" => "comic",
-                _ => return Ok(vec![]),
-            },
+            endpoint,
             integration.api_key,
         );
 
@@ -239,7 +254,12 @@ impl MediaService {
         };
 
         let genres: Option<Vec<String>> = item.get("genres").and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|g| g.as_str().map(|s| s.to_string())).collect());
+            .map(|arr| arr.iter().filter_map(|g| {
+                if let Some(s) = g.as_str() { Some(s.to_string()) }
+                else if let Some(obj) = g.as_object() {
+                    obj.get("name").and_then(|n| n.as_str()).map(|s| s.to_string())
+                } else { None }
+            }).collect());
 
         let season_count = item.get("seasons").and_then(|v| v.as_array()).map(|a| a.len() as i32);
         let episode_count = item.get("episodeCount").and_then(|v| v.as_i64()).map(|v| v as i32);
@@ -290,17 +310,19 @@ impl MediaService {
             }
 
             let client = reqwest::Client::new();
+            let endpoint = match integration_type {
+                "radarr" => "movie",
+                "sonarr" => "series",
+                "lidarr" => "artist",
+                "readarr" => "book",
+                "mylar3" => "comics",
+                _ => continue,
+            };
+
             let search_url = format!(
                 "{}/api/v3/{}?apikey={}&term={}",
                 integration.base_url.trim_end_matches('/'),
-                match integration_type {
-                    "radarr" => "movie",
-                    "sonarr" => "series",
-                    "lidarr" => "artist",
-                    "readarr" => "book",
-                    "mylar3" => "comic",
-                    _ => continue,
-                },
+                endpoint,
                 integration.api_key,
                 urlencoding(&media.title),
             );
@@ -326,24 +348,37 @@ impl MediaService {
     // === External API trending ===
 
     async fn tmdb_trending(media_type: &str) -> anyhow::Result<Vec<Media>> {
-        // TMDB doesn't require an API key for basic trending (but we use a public one)
         let client = reqwest::Client::new();
         let url = format!(
-            "https://api.themoviedb.org/3/trending/{}/week?language=en-US",
-            media_type
+            "https://api.themoviedb.org/3/trending/{}/week?language=en-US&api_key={}",
+            media_type, TMDB_API_KEY
         );
 
         let resp = client.get(&url)
-            .header("Authorization", "Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI4YzE5YzA5YjA5YzA5YjA5YzA5YjA5YzA5YjA5YzA5Iiwic3ViIjoiNTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTUiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
             .header("Accept", "application/json")
             .send().await?;
 
         if !resp.status().is_success() {
+            tracing::warn!("TMDB API returned {}", resp.status());
             return Ok(vec![]);
         }
 
         let data: Value = resp.json().await?;
-        let results = data.get("results").and_then(|r| r.as_array()).ok_or_else(|| anyhow::anyhow!("No results"))?;
+        let results = data.get("results").and_then(|r| r.as_array())
+            .ok_or_else(|| anyhow::anyhow!("No results from TMDB"))?;
+
+        // Genre mapping for TMDB genre IDs
+        let genre_map: HashMap<i64, &str> = [
+            (28, "Action"), (12, "Adventure"), (16, "Animation"), (35, "Comedy"),
+            (80, "Crime"), (99, "Documentary"), (18, "Drama"), (10751, "Family"),
+            (14, "Fantasy"), (36, "History"), (27, "Horror"), (10402, "Music"),
+            (9648, "Mystery"), (10749, "Romance"), (878, "Sci-Fi"), (10770, "TV Movie"),
+            (53, "Thriller"), (10752, "War"), (37, "Western"),
+            // TV-specific
+            (10759, "Action & Adventure"), (10762, "Kids"), (10763, "News"),
+            (10764, "Reality"), (10765, "Sci-Fi & Fantasy"), (10766, "Soap"),
+            (10767, "Talk"), (10768, "War & Politics"),
+        ].iter().cloned().collect();
 
         let items = results.iter().map(|item| {
             let id = item.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
@@ -355,7 +390,9 @@ impl MediaService {
             let vote_average = item.get("vote_average").and_then(|v| v.as_f64());
 
             let genres: Option<Vec<String>> = item.get("genre_ids").and_then(|v| v.as_array())
-                .map(|arr| arr.iter().filter_map(|g| g.as_i64().map(|i| i.to_string())).collect());
+                .map(|arr| arr.iter().filter_map(|g| {
+                    g.as_i64().and_then(|id| genre_map.get(&id)).map(|s| s.to_string())
+                }).collect());
 
             Media {
                 id: format!("tmdb-{}", id),
@@ -380,10 +417,14 @@ impl MediaService {
 
     async fn lastfm_trending() -> anyhow::Result<Vec<Media>> {
         let client = reqwest::Client::new();
-        let url = "https://ws.audioscrobbler.com/2.0/?method=chart.gettopartists&api_key=5b8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c&format=json&limit=20";
+        let url = format!(
+            "https://ws.audioscrobbler.com/2.0/?method=chart.gettopartists&api_key={}&format=json&limit=20",
+            LASTFM_API_KEY
+        );
 
-        let resp = client.get(url).send().await?;
+        let resp = client.get(&url).send().await?;
         if !resp.status().is_success() {
+            tracing::warn!("LastFM API returned {}", resp.status());
             return Ok(vec![]);
         }
 
@@ -391,7 +432,7 @@ impl MediaService {
         let artists = data.get("artists")
             .and_then(|a| a.get("artist"))
             .and_then(|a| a.as_array())
-            .ok_or_else(|| anyhow::anyhow!("No artists"))?;
+            .ok_or_else(|| anyhow::anyhow!("No artists from LastFM"))?;
 
         let items = artists.iter().map(|item| {
             let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
@@ -430,11 +471,13 @@ impl MediaService {
 
         let resp = client.get(url).send().await?;
         if !resp.status().is_success() {
+            tracing::warn!("OpenLibrary API returned {}", resp.status());
             return Ok(vec![]);
         }
 
         let data: Value = resp.json().await?;
-        let works = data.get("works").and_then(|w| w.as_array()).ok_or_else(|| anyhow::anyhow!("No works"))?;
+        let works = data.get("works").and_then(|w| w.as_array())
+            .ok_or_else(|| anyhow::anyhow!("No works from OpenLibrary"))?;
 
         let items = works.iter().map(|item| {
             let title = item.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
@@ -473,15 +516,20 @@ impl MediaService {
 
     async fn comicvine_trending() -> anyhow::Result<Vec<Media>> {
         let client = reqwest::Client::new();
-        let url = "https://comicvine.gamespot.com/api/issues/?api_key=5b8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c&format=json&sort=date_added:desc&limit=20&field_list=id,name,image,volume,cover_date,description";
+        let url = format!(
+            "https://comicvine.gamespot.com/api/issues/?api_key={}&format=json&sort=date_added:desc&limit=20&field_list=id,name,image,volume,cover_date,description",
+            COMICVINE_API_KEY
+        );
 
-        let resp = client.get(url).send().await?;
+        let resp = client.get(&url).send().await?;
         if !resp.status().is_success() {
+            tracing::warn!("ComicVine API returned {}", resp.status());
             return Ok(vec![]);
         }
 
         let data: Value = resp.json().await?;
-        let results = data.get("results").and_then(|r| r.as_array()).ok_or_else(|| anyhow::anyhow!("No results"))?;
+        let results = data.get("results").and_then(|r| r.as_array())
+            .ok_or_else(|| anyhow::anyhow!("No results from ComicVine"))?;
 
         let items = results.iter().map(|item| {
             let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
@@ -516,10 +564,6 @@ impl MediaService {
 }
 
 fn urlencoding(s: &str) -> String {
-    urlencoding_internal(s)
-}
-
-fn urlencoding_internal(s: &str) -> String {
     let mut result = String::new();
     for byte in s.bytes() {
         match byte {

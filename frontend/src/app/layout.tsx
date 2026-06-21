@@ -57,8 +57,51 @@ export default function RootLayout({
     // Remove old injection
     const old = document.getElementById("oakseerr-css-injection");
     if (old) old.remove();
+    const oldReset = document.getElementById("oakseerr-css-reset");
+    if (oldReset) oldReset.remove();
 
     if (!css.trim()) return;
+
+    // Inject a CSS reset layer FIRST that protects the base layout
+    // This ensures the sidebar, main content, and app-layout always work
+    const resetStyle = document.createElement("style");
+    resetStyle.id = "oakseerr-css-reset";
+    resetStyle.textContent = `
+      /* Protect base layout from theme overrides */
+      .app-layout, .sidebar, .main-content, .sidebar-nav, .sidebar-item,
+      .sidebar-header, .sidebar-user, .media-card, .media-grid,
+      .card, .btn, .input, .tabs, .tab, .badge, .section-header,
+      .section-title, .settings-layout, .settings-nav, .settings-content,
+      .form-group, .form-label, .form-hint, .toast, .detail-content,
+      .detail-backdrop, .detail-info, .detail-poster, .detail-title,
+      .detail-meta, .detail-genres, .detail-overview, .media-card-poster,
+      .media-card-info, .media-card-title, .media-card-overlay,
+      .media-card-status, .media-card-genres, .sidebar-logo,
+      .sidebar-logo-text, .sidebar-section-label, .sidebar-item-icon,
+      .sidebar-user-avatar, .sidebar-user-name, .sidebar-user-role,
+      .sidebar-close-btn, .sidebar-user-logout, .mobile-header,
+      .mobile-logo, .mobile-menu-btn, .sidebar-overlay,
+      .skeleton, .progress-bar, .progress-bar-fill,
+      .status-dot, .genre-badge, .badge-available, .badge-primary,
+      .badge-success, .badge-warning, .badge-error,
+      .btn-primary, .btn-secondary, .btn-danger, .btn-sm {
+        all: revert-layer !important;
+      }
+      /* Ensure the app-layout is always flex */
+      .app-layout {
+        display: flex !important;
+        height: 100vh !important;
+      }
+      .sidebar {
+        width: var(--jf-sidebar-width, 240px) !important;
+        flex-shrink: 0 !important;
+      }
+      .main-content {
+        flex: 1 !important;
+        overflow-y: auto !important;
+      }
+    `;
+    document.head.appendChild(resetStyle);
 
     // Check if it's an @import URL — inject as <link> for proper CORS handling
     const importMatch = css.match(/@import\s+url\(['"]([^'"]+)['"]\)/);
