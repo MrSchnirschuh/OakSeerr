@@ -23,6 +23,7 @@ Thumbs.db
 
 # Data
 data/
+cookies.txt
 *.db
 *.db-journal
 *.db-wal
