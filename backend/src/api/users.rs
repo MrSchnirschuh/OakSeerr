@@ -1,12 +1,13 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     routing::{delete, get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
+use crate::api::middleware::require_auth;
 use crate::AppState;
 use crate::models::User;
 
@@ -66,15 +67,19 @@ pub fn router() -> Router<Arc<AppState>> {
 
 async fn list_users(
     State(state): State<Arc<AppState>>,
-) -> Json<Vec<UserResponse>> {
+    headers: HeaderMap,
+) -> Result<Json<Vec<UserResponse>>, (StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     let users = state.db.list_users().await.unwrap_or_default();
-    Json(users.into_iter().map(UserResponse::from).collect())
+    Ok(Json(users.into_iter().map(UserResponse::from).collect()))
 }
 
 async fn create_user(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<CreateUserRequest>,
 ) -> Result<Json<UserResponse>, (StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     // Check if username already exists
     if let Some(_existing) = state.db.get_user_by_username(&req.username).await
         .map_err(|e| {
@@ -113,8 +118,10 @@ async fn create_user(
 
 async fn get_user(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<UserResponse>, (StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     let user = state.db.get_user(&id).await
         .map_err(|e| {
             (
@@ -134,9 +141,11 @@ async fn get_user(
 
 async fn update_user(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<UserResponse>, (StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     let mut user = state.db.get_user(&id).await
         .map_err(|e| {
             (
@@ -169,8 +178,10 @@ async fn update_user(
 
 async fn delete_user(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     // Don't allow deleting the demo user
     if id == "demo-user" {
         return Err((

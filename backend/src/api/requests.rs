@@ -1,11 +1,12 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     routing::{get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use crate::api::middleware::require_auth;
 use crate::AppState;
 use crate::models::MediaRequest;
 use crate::services::requests::RequestService;
@@ -67,10 +68,11 @@ async fn list_requests(
 
 async fn create_request(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<CreateRequestRequest>,
 ) -> Result<Json<RequestResponse>, (StatusCode, Json<serde_json::Value>)> {
-    // Use demo user for now; in production this would come from JWT claims
-    let user_id = "demo-user".to_string();
+    let claims = require_auth(&headers, &state)?;
+    let user_id = claims.sub;
 
     let request = RequestService::create(
         &state.db,
@@ -113,8 +115,10 @@ async fn get_request(
 
 async fn approve_request(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<RequestResponse>, (StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     let request = RequestService::approve(&state.db, &id)
         .await
         .map_err(|e| {
@@ -129,8 +133,10 @@ async fn approve_request(
 
 async fn decline_request(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<RequestResponse>, (StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     let request = RequestService::decline(&state.db, &id)
         .await
         .map_err(|e| {

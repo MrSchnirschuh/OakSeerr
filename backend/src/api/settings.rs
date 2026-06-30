@@ -1,12 +1,13 @@
 use axum::{
     extract::State,
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     routing::{get, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use crate::api::middleware::require_auth;
 use crate::AppState;
 use crate::services::settings::SettingsService;
 
@@ -33,15 +34,19 @@ pub fn router() -> Router<Arc<AppState>> {
 
 async fn get_settings(
     State(state): State<Arc<AppState>>,
-) -> Json<HashMap<String, String>> {
+    headers: HeaderMap,
+) -> Result<Json<HashMap<String, String>>, (StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     let settings = SettingsService::get_all(&state.db).await.unwrap_or_default();
-    Json(settings)
+    Ok(Json(settings))
 }
 
 async fn update_settings(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<UpdateSettingsRequest>,
 ) -> Result<Json<HashMap<String, String>>, (StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     for (key, value) in &req.settings {
         SettingsService::set(&state.db, key, value)
             .await
@@ -59,28 +64,32 @@ async fn update_settings(
 
 async fn get_api_keys(
     State(state): State<Arc<AppState>>,
-) -> Json<ApiKeys> {
+    headers: HeaderMap,
+) -> Result<Json<ApiKeys>, (StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     let tmdb = SettingsService::get(&state.db, "TMDB_API_KEY").await
         .unwrap_or(None)
-        .unwrap_or_else(|| "1f0e6b3b5c5a5b5d5e5f5a5b5c5d5e5f".to_string());
+        .unwrap_or_default();
     let lastfm = SettingsService::get(&state.db, "LASTFM_API_KEY").await
         .unwrap_or(None)
-        .unwrap_or_else(|| "5b8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c".to_string());
+        .unwrap_or_default();
     let comicvine = SettingsService::get(&state.db, "COMICVINE_API_KEY").await
         .unwrap_or(None)
-        .unwrap_or_else(|| "5b8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c".to_string());
+        .unwrap_or_default();
 
-    Json(ApiKeys {
+    Ok(Json(ApiKeys {
         tmdb_api_key: tmdb,
         lastfm_api_key: lastfm,
         comicvine_api_key: comicvine,
-    })
+    }))
 }
 
 async fn update_api_keys(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(keys): Json<ApiKeys>,
 ) -> Result<Json<ApiKeys>, (StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     SettingsService::set(&state.db, "TMDB_API_KEY", &keys.tmdb_api_key)
         .await
         .map_err(|e| {

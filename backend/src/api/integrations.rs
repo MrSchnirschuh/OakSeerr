@@ -1,11 +1,13 @@
 use axum::{
     extract::{Path, State},
+    http::{HeaderMap, StatusCode},
     routing::{delete, get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
+use crate::api::middleware::require_auth;
 use crate::AppState;
 use crate::models::Integration;
 use crate::services::integrations::IntegrationService;
@@ -68,15 +70,19 @@ pub fn router() -> Router<Arc<AppState>> {
 
 async fn list_integrations(
     State(state): State<Arc<AppState>>,
-) -> Json<Vec<IntegrationResponse>> {
+    headers: HeaderMap,
+) -> Result<Json<Vec<IntegrationResponse>>, (StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     let integrations = state.db.list_integrations().await.unwrap_or_default();
-    Json(integrations.into_iter().map(IntegrationResponse::from).collect())
+    Ok(Json(integrations.into_iter().map(IntegrationResponse::from).collect()))
 }
 
 async fn create_integration(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<CreateIntegrationRequest>,
 ) -> Result<Json<IntegrationResponse>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     if !ALLOWED_TYPES.contains(&req.integration_type.as_str()) {
         return Err((
             axum::http::StatusCode::BAD_REQUEST,
@@ -109,8 +115,10 @@ async fn create_integration(
 
 async fn get_integration(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<IntegrationResponse>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     let integration = state.db.get_integration(&id).await
         .map_err(|e| {
             (
@@ -130,9 +138,11 @@ async fn get_integration(
 
 async fn update_integration(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
     Json(req): Json<UpdateIntegrationRequest>,
 ) -> Result<Json<IntegrationResponse>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     let mut integration = state.db.get_integration(&id).await
         .map_err(|e| {
             (
@@ -165,16 +175,20 @@ async fn update_integration(
 
 async fn delete_integration(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
-) -> Json<serde_json::Value> {
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     state.db.delete_integration(&id).await.unwrap_or_default();
-    Json(serde_json::json!({"status": "deleted"}))
+    Ok(Json(serde_json::json!({"status": "deleted"})))
 }
 
 async fn test_integration(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    require_auth(&headers, &state)?;
     let integration = state.db.get_integration(&id).await
         .map_err(|e| {
             (
