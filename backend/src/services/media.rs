@@ -411,7 +411,7 @@ impl MediaService {
     }
 
     async fn tmdb_trending(db: &Database, media_type: &str) -> anyhow::Result<Vec<Media>> {
-        let api_key = Self::get_api_key(db, "TMDB_API_KEY", "1f0e6b3b5c5a5b5d5e5f5a5b5c5d5e5f").await;
+        let api_key = Self::get_api_key(db, "TMDB_API_KEY", "").await;
         let client = reqwest::Client::new();
         let url = format!(
             "https://api.themoviedb.org/3/trending/{}/week?language=en-US&api_key={}",
@@ -488,7 +488,7 @@ impl MediaService {
     }
 
     async fn tmdb_cast(db: &Database, media_type: &str, tmdb_id: i64) -> anyhow::Result<Vec<CastMember>> {
-        let api_key = Self::get_api_key(db, "TMDB_API_KEY", "1f0e6b3b5c5a5b5d5e5f5a5b5c5d5e5f").await;
+        let api_key = Self::get_api_key(db, "TMDB_API_KEY", "").await;
         let client = reqwest::Client::new();
         let url = format!(
             "https://api.themoviedb.org/3/{}/{}/credits?api_key={}&language=en-US",
@@ -518,7 +518,7 @@ impl MediaService {
     }
 
     async fn tmdb_similar(db: &Database, media_type: &str, tmdb_id: i64) -> anyhow::Result<Vec<Media>> {
-        let api_key = Self::get_api_key(db, "TMDB_API_KEY", "1f0e6b3b5c5a5b5d5e5f5a5b5c5d5e5f").await;
+        let api_key = Self::get_api_key(db, "TMDB_API_KEY", "").await;
         let client = reqwest::Client::new();
         let url = format!(
             "https://api.themoviedb.org/3/{}/{}/similar?api_key={}&language=en-US&page=1",
@@ -567,7 +567,7 @@ impl MediaService {
     }
 
     async fn lastfm_trending(db: &Database) -> anyhow::Result<Vec<Media>> {
-        let api_key = Self::get_api_key(db, "LASTFM_API_KEY", "5b8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c").await;
+        let api_key = Self::get_api_key(db, "LASTFM_API_KEY", "").await;
         let client = reqwest::Client::new();
         let url = format!(
             "https://ws.audioscrobbler.com/2.0/?method=chart.gettopartists&api_key={}&format=json&limit=20",
@@ -679,7 +679,7 @@ impl MediaService {
     }
 
     async fn comicvine_trending(db: &Database) -> anyhow::Result<Vec<Media>> {
-        let api_key = Self::get_api_key(db, "COMICVINE_API_KEY", "5b8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c").await;
+        let api_key = Self::get_api_key(db, "COMICVINE_API_KEY", "").await;
         let client = reqwest::Client::new();
         let url = format!(
             "https://comicvine.gamespot.com/api/issues/?api_key={}&format=json&sort=date_added:desc&limit=20&field_list=id,name,image,volume,cover_date,description",

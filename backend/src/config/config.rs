@@ -10,6 +10,7 @@ pub struct Config {
     pub jellyfin_url: Option<String>,
     pub jellyfin_api_key: Option<String>,
     pub log_level: String,
+    pub demo_mode: bool,
 }
 
 impl Config {
@@ -40,6 +41,10 @@ impl Config {
             jellyfin_api_key: env::var("JELLYFIN_API_KEY").ok(),
             log_level: env::var("LOG_LEVEL")
                 .unwrap_or_else(|_| "oakseerr=info,tower_http=info".to_string()),
+            demo_mode: env::var("DEMO_MODE")
+                .ok()
+                .and_then(|v| v.parse::<bool>().ok())
+                .unwrap_or(false),
         })
     }
 }

@@ -66,6 +66,13 @@ async fn login(
     State(state): State<Arc<AppState>>,
     Json(_req): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, (StatusCode, Json<serde_json::Value>)> {
+    if !state.config.demo_mode {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Demo mode is disabled. Use /auth/jellyfin to log in."})),
+        ));
+    }
+
     let (user, token) = state.auth_service.create_demo_user(&state.db)
         .await
         .map_err(|e| {
