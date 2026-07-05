@@ -11,7 +11,6 @@ use crate::models::User;
 
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
-    pub username: String,
 }
 
 #[derive(Debug, Deserialize)]
