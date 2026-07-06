@@ -11,6 +11,7 @@ pub struct Config {
     pub jellyfin_api_key: Option<String>,
     pub log_level: String,
     pub demo_mode: bool,
+    pub cors_origin: String,
 }
 
 impl Config {
@@ -45,6 +46,8 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse::<bool>().ok())
                 .unwrap_or(false),
+            cors_origin: env::var("CORS_ORIGIN")
+                .unwrap_or_else(|_| "http://localhost:5055".to_string()),
         })
     }
 }
