@@ -104,20 +104,6 @@ fn test_user() -> User {
     }
 }
 
-fn test_config() -> Config {
-    Config {
-        database_url: "sqlite::memory:".to_string(),
-        jwt_secret: "test-secret-key-for-testing-only".to_string(),
-        listen_addr: "0.0.0.0:5055".to_string(),
-        port: 5055,
-        jellyfin_url: None,
-        jellyfin_api_key: None,
-        log_level: "oakseerr=debug".to_string(),
-        demo_mode: true,
-        cors_origin: "http://localhost:5055".to_string(),
-    }
-}
-
 // ===== AuthService Tests =====
 
 #[tokio::test]
