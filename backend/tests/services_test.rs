@@ -1,10 +1,12 @@
 use oakseerr::{
     config::Config,
     db::Database,
-    models::{MediaRequest, User},
+    models::{Integration, MediaRequest, User},
     services::{
         auth::AuthService,
+        integrations::IntegrationService,
         requests::RequestService,
+        settings::SettingsService,
     },
 };
 use uuid::Uuid;
@@ -379,4 +381,134 @@ async fn test_config_defaults() {
     assert_eq!(config.port, 5055);
     assert!(!config.demo_mode);
     assert_eq!(config.cors_origin, "http://localhost:5055");
+}
+
+// ===== SettingsService Tests =====
+
+#[tokio::test]
+async fn test_settings_get_set() {
+    let db = test_db().await;
+    SettingsService::set(&db, "test_key", "test_value").await.unwrap();
+    let val = SettingsService::get(&db, "test_key").await.unwrap();
+    assert_eq!(val, Some("test_value".to_string()));
+}
+
+#[tokio::test]
+async fn test_settings_get_missing() {
+    let db = test_db().await;
+    let val = SettingsService::get(&db, "nonexistent").await.unwrap();
+    assert_eq!(val, None);
+}
+
+#[tokio::test]
+async fn test_settings_get_all() {
+    let db = test_db().await;
+    SettingsService::set(&db, "key1", "val1").await.unwrap();
+    SettingsService::set(&db, "key2", "val2").await.unwrap();
+    let all = SettingsService::get_all(&db).await.unwrap();
+    assert_eq!(all.get("key1"), Some(&"val1".to_string()));
+    assert_eq!(all.get("key2"), Some(&"val2".to_string()));
+}
+
+#[tokio::test]
+async fn test_settings_get_api_key() {
+    let db = test_db().await;
+    // No key set — should return default
+    let val = SettingsService::get_api_key(&db, "TMDB_API_KEY", "default-key").await.unwrap();
+    assert_eq!(val, "default-key");
+
+    // Set key — should return it
+    SettingsService::set(&db, "TMDB_API_KEY", "real-key").await.unwrap();
+    let val = SettingsService::get_api_key(&db, "TMDB_API_KEY", "default-key").await.unwrap();
+    assert_eq!(val, "real-key");
+}
+
+// ===== IntegrationService Tests =====
+
+#[tokio::test]
+async fn test_integration_test_connection_fails_for_unreachable() {
+    let integration = Integration {
+        id: "test-int-1".to_string(),
+        name: "Test Radarr".to_string(),
+        integration_type: "radarr".to_string(),
+        base_url: "http://127.0.0.1:1".to_string(), // port 1 = unreachable
+        api_key: "test-key".to_string(),
+        enabled: true,
+        created_at: chrono::Utc::now().to_rfc3339(),
+        updated_at: chrono::Utc::now().to_rfc3339(),
+    };
+    let result = IntegrationService::test(&integration).await;
+    assert!(result.is_err(), "Connection to unreachable host should fail");
+}
+
+#[tokio::test]
+async fn test_integration_test_connection_fails_for_bad_url() {
+    let integration = Integration {
+        id: "test-int-2".to_string(),
+        name: "Test Bad URL".to_string(),
+        integration_type: "sonarr".to_string(),
+        base_url: "http://invalid-host-that-does-not-exist.local".to_string(),
+        api_key: "test-key".to_string(),
+        enabled: true,
+        created_at: chrono::Utc::now().to_rfc3339(),
+        updated_at: chrono::Utc::now().to_rfc3339(),
+    };
+    let result = IntegrationService::test(&integration).await;
+    assert!(result.is_err(), "Connection to invalid host should fail");
+}
+
+// ===== urlencoding Tests =====
+
+#[test]
+fn test_urlencoding_basic() {
+    assert_eq!(oakseerr::urlencoding("hello world"), "hello%20world");
+    assert_eq!(oakseerr::urlencoding("test"), "test");
+    assert_eq!(oakseerr::urlencoding("a/b"), "a%2Fb");
+}
+
+#[test]
+fn test_urlencoding_special_chars() {
+    assert_eq!(oakseerr::urlencoding("foo bar baz"), "foo%20bar%20baz");
+    assert_eq!(oakseerr::urlencoding("a&b=c"), "a%26b%3Dc");
+}
+
+#[test]
+fn test_urlencoding_unicode() {
+    let encoded = oakseerr::urlencoding("über cool");
+    assert!(encoded.contains("%C3%BC"), "ü should be percent-encoded: {}", encoded);
+}
+
+// ===== Config Tests (continued) =====
+
+#[test]
+fn test_config_port_parsing() {
+    let config = Config {
+        database_url: "sqlite://:memory:".to_string(),
+        jwt_secret: "test".to_string(),
+        listen_addr: "0.0.0.0:9090".to_string(),
+        port: 9090,
+        jellyfin_url: None,
+        jellyfin_api_key: None,
+        log_level: "info".to_string(),
+        demo_mode: false,
+        cors_origin: "http://localhost:9090".to_string(),
+    };
+    assert_eq!(config.port, 9090);
+    assert_eq!(config.listen_addr, "0.0.0.0:9090");
+}
+
+#[test]
+fn test_config_demo_mode() {
+    let config = Config {
+        database_url: "sqlite://:memory:".to_string(),
+        jwt_secret: "test".to_string(),
+        listen_addr: "0.0.0.0:5055".to_string(),
+        port: 5055,
+        jellyfin_url: None,
+        jellyfin_api_key: None,
+        log_level: "info".to_string(),
+        demo_mode: true,
+        cors_origin: "http://localhost:5055".to_string(),
+    };
+    assert!(config.demo_mode);
 }
