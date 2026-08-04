@@ -1,5 +1,5 @@
-use crate::models::MediaRequest;
 use crate::db::Database;
+use crate::models::MediaRequest;
 use uuid::Uuid;
 
 pub struct RequestService;
@@ -30,7 +30,9 @@ impl RequestService {
     }
 
     pub async fn approve(db: &Database, id: &str) -> anyhow::Result<MediaRequest> {
-        let mut request = db.get_request(id).await?
+        let mut request = db
+            .get_request(id)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("Request not found"))?;
         request.status = "approved".to_string();
         request.updated_at = chrono::Utc::now().to_rfc3339();
@@ -39,7 +41,9 @@ impl RequestService {
     }
 
     pub async fn decline(db: &Database, id: &str) -> anyhow::Result<MediaRequest> {
-        let mut request = db.get_request(id).await?
+        let mut request = db
+            .get_request(id)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("Request not found"))?;
         request.status = "declined".to_string();
         request.updated_at = chrono::Utc::now().to_rfc3339();
@@ -58,7 +62,9 @@ impl RequestService {
         id: &str,
         download_status: &str,
     ) -> anyhow::Result<MediaRequest> {
-        let mut request = db.get_request(id).await?
+        let mut request = db
+            .get_request(id)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("Request not found"))?;
         request.download_status = download_status.to_string();
         request.updated_at = chrono::Utc::now().to_rfc3339();

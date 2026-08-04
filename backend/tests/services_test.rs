@@ -3,9 +3,7 @@ use oakseerr::{
     db::Database,
     models::{Integration, MediaRequest, User},
     services::{
-        auth::AuthService,
-        integrations::IntegrationService,
-        requests::RequestService,
+        auth::AuthService, integrations::IntegrationService, requests::RequestService,
         settings::SettingsService,
     },
 };
@@ -26,8 +24,11 @@ async fn test_db() -> Database {
             permissions INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
-        )"
-    ).execute(&db.pool).await.unwrap();
+        )",
+    )
+    .execute(&db.pool)
+    .await
+    .unwrap();
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS media_requests (
@@ -41,8 +42,11 @@ async fn test_db() -> Database {
             external_service_id TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
-        )"
-    ).execute(&db.pool).await.unwrap();
+        )",
+    )
+    .execute(&db.pool)
+    .await
+    .unwrap();
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS media (
@@ -66,8 +70,11 @@ async fn test_db() -> Database {
             author_name TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
-        )"
-    ).execute(&db.pool).await.unwrap();
+        )",
+    )
+    .execute(&db.pool)
+    .await
+    .unwrap();
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS integrations (
@@ -79,15 +86,21 @@ async fn test_db() -> Database {
             enabled INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
-        )"
-    ).execute(&db.pool).await.unwrap();
+        )",
+    )
+    .execute(&db.pool)
+    .await
+    .unwrap();
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
-        )"
-    ).execute(&db.pool).await.unwrap();
+        )",
+    )
+    .execute(&db.pool)
+    .await
+    .unwrap();
 
     db
 }
@@ -142,7 +155,10 @@ async fn test_auth_verify_wrong_secret() {
     let user = test_user();
     let token = auth1.create_token(&user).unwrap();
     let result = auth2.verify_token(&token);
-    assert!(result.is_err(), "Token signed with different secret should fail");
+    assert!(
+        result.is_err(),
+        "Token signed with different secret should fail"
+    );
 }
 
 #[tokio::test]
@@ -164,13 +180,9 @@ async fn test_auth_create_demo_user() {
 #[tokio::test]
 async fn test_request_create() {
     let db = test_db().await;
-    let request = RequestService::create(
-        &db,
-        "user-1",
-        "movie",
-        "tmdb-550",
-        "Fight Club",
-    ).await.unwrap();
+    let request = RequestService::create(&db, "user-1", "movie", "tmdb-550", "Fight Club")
+        .await
+        .unwrap();
 
     assert_eq!(request.user_id, "user-1");
     assert_eq!(request.media_type, "movie");
@@ -184,9 +196,9 @@ async fn test_request_create() {
 #[tokio::test]
 async fn test_request_approve() {
     let db = test_db().await;
-    let request = RequestService::create(
-        &db, "user-1", "movie", "tmdb-550", "Fight Club",
-    ).await.unwrap();
+    let request = RequestService::create(&db, "user-1", "movie", "tmdb-550", "Fight Club")
+        .await
+        .unwrap();
 
     let approved = RequestService::approve(&db, &request.id).await.unwrap();
     assert_eq!(approved.status, "approved");
@@ -202,9 +214,9 @@ async fn test_request_approve_not_found() {
 #[tokio::test]
 async fn test_request_decline() {
     let db = test_db().await;
-    let request = RequestService::create(
-        &db, "user-1", "movie", "tmdb-550", "Fight Club",
-    ).await.unwrap();
+    let request = RequestService::create(&db, "user-1", "movie", "tmdb-550", "Fight Club")
+        .await
+        .unwrap();
 
     let declined = RequestService::decline(&db, &request.id).await.unwrap();
     assert_eq!(declined.status, "declined");
@@ -213,13 +225,13 @@ async fn test_request_decline() {
 #[tokio::test]
 async fn test_request_update_download_status() {
     let db = test_db().await;
-    let request = RequestService::create(
-        &db, "user-1", "movie", "tmdb-550", "Fight Club",
-    ).await.unwrap();
+    let request = RequestService::create(&db, "user-1", "movie", "tmdb-550", "Fight Club")
+        .await
+        .unwrap();
 
-    let updated = RequestService::update_download_status(
-        &db, &request.id, "imported",
-    ).await.unwrap();
+    let updated = RequestService::update_download_status(&db, &request.id, "imported")
+        .await
+        .unwrap();
     assert_eq!(updated.download_status, "imported");
 }
 
@@ -227,9 +239,15 @@ async fn test_request_update_download_status() {
 async fn test_request_get_all_with_status() {
     let db = test_db().await;
     // Create a few requests
-    RequestService::create(&db, "user-1", "movie", "tmdb-550", "Fight Club").await.unwrap();
-    RequestService::create(&db, "user-1", "tv", "tmdb-1668", "Breaking Bad").await.unwrap();
-    RequestService::create(&db, "user-2", "movie", "tmdb-680", "Pulp Fiction").await.unwrap();
+    RequestService::create(&db, "user-1", "movie", "tmdb-550", "Fight Club")
+        .await
+        .unwrap();
+    RequestService::create(&db, "user-1", "tv", "tmdb-1668", "Breaking Bad")
+        .await
+        .unwrap();
+    RequestService::create(&db, "user-2", "movie", "tmdb-680", "Pulp Fiction")
+        .await
+        .unwrap();
 
     let all = RequestService::get_all_with_status(&db).await.unwrap();
     assert_eq!(all.len(), 3, "Should return all 3 requests");
@@ -319,18 +337,26 @@ async fn test_db_create_and_get_request() {
 async fn test_db_list_requests() {
     let db = test_db().await;
     let r1 = MediaRequest {
-        id: Uuid::new_v4().to_string(), user_id: "u1".to_string(),
-        media_type: "movie".to_string(), media_id: "tmdb-1".to_string(),
-        title: "Movie 1".to_string(), status: "pending".to_string(),
-        download_status: "none".to_string(), external_service_id: None,
+        id: Uuid::new_v4().to_string(),
+        user_id: "u1".to_string(),
+        media_type: "movie".to_string(),
+        media_id: "tmdb-1".to_string(),
+        title: "Movie 1".to_string(),
+        status: "pending".to_string(),
+        download_status: "none".to_string(),
+        external_service_id: None,
         created_at: chrono::Utc::now().to_rfc3339(),
         updated_at: chrono::Utc::now().to_rfc3339(),
     };
     let r2 = MediaRequest {
-        id: Uuid::new_v4().to_string(), user_id: "u2".to_string(),
-        media_type: "tv".to_string(), media_id: "tmdb-2".to_string(),
-        title: "Show 1".to_string(), status: "approved".to_string(),
-        download_status: "none".to_string(), external_service_id: None,
+        id: Uuid::new_v4().to_string(),
+        user_id: "u2".to_string(),
+        media_type: "tv".to_string(),
+        media_id: "tmdb-2".to_string(),
+        title: "Show 1".to_string(),
+        status: "approved".to_string(),
+        download_status: "none".to_string(),
+        external_service_id: None,
         created_at: chrono::Utc::now().to_rfc3339(),
         updated_at: chrono::Utc::now().to_rfc3339(),
     };
@@ -348,7 +374,9 @@ async fn test_db_list_requests() {
 #[tokio::test]
 async fn test_db_settings() {
     let db = test_db().await;
-    db.set_setting("TMDB_API_KEY", "test-key-123").await.unwrap();
+    db.set_setting("TMDB_API_KEY", "test-key-123")
+        .await
+        .unwrap();
 
     let val = db.get_setting("TMDB_API_KEY").await.unwrap();
     assert_eq!(val, Some("test-key-123".to_string()));
@@ -388,7 +416,9 @@ async fn test_config_defaults() {
 #[tokio::test]
 async fn test_settings_get_set() {
     let db = test_db().await;
-    SettingsService::set(&db, "test_key", "test_value").await.unwrap();
+    SettingsService::set(&db, "test_key", "test_value")
+        .await
+        .unwrap();
     let val = SettingsService::get(&db, "test_key").await.unwrap();
     assert_eq!(val, Some("test_value".to_string()));
 }
@@ -414,12 +444,18 @@ async fn test_settings_get_all() {
 async fn test_settings_get_api_key() {
     let db = test_db().await;
     // No key set — should return default
-    let val = SettingsService::get_api_key(&db, "TMDB_API_KEY", "default-key").await.unwrap();
+    let val = SettingsService::get_api_key(&db, "TMDB_API_KEY", "default-key")
+        .await
+        .unwrap();
     assert_eq!(val, "default-key");
 
     // Set key — should return it
-    SettingsService::set(&db, "TMDB_API_KEY", "real-key").await.unwrap();
-    let val = SettingsService::get_api_key(&db, "TMDB_API_KEY", "default-key").await.unwrap();
+    SettingsService::set(&db, "TMDB_API_KEY", "real-key")
+        .await
+        .unwrap();
+    let val = SettingsService::get_api_key(&db, "TMDB_API_KEY", "default-key")
+        .await
+        .unwrap();
     assert_eq!(val, "real-key");
 }
 
@@ -438,7 +474,10 @@ async fn test_integration_test_connection_fails_for_unreachable() {
         updated_at: chrono::Utc::now().to_rfc3339(),
     };
     let result = IntegrationService::test(&integration).await;
-    assert!(result.is_err(), "Connection to unreachable host should fail");
+    assert!(
+        result.is_err(),
+        "Connection to unreachable host should fail"
+    );
 }
 
 #[tokio::test]
@@ -475,7 +514,11 @@ fn test_urlencoding_special_chars() {
 #[test]
 fn test_urlencoding_unicode() {
     let encoded = oakseerr::urlencoding("über cool");
-    assert!(encoded.contains("%C3%BC"), "ü should be percent-encoded: {}", encoded);
+    assert!(
+        encoded.contains("%C3%BC"),
+        "ü should be percent-encoded: {}",
+        encoded
+    );
 }
 
 // ===== Config Tests (continued) =====

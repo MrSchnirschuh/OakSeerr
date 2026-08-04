@@ -1,13 +1,13 @@
+use crate::AppState;
+use crate::models::Media;
+use crate::services::media::{MediaDetail, MediaService};
 use axum::{
+    Json, Router,
     extract::{Path, Query, State},
     routing::get,
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use crate::services::media::{MediaService, MediaDetail};
-use crate::AppState;
-use crate::models::Media;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MediaItem {
@@ -31,9 +31,8 @@ impl From<Media> for MediaItem {
     fn from(m: Media) -> Self {
         let year = m.release_date.as_ref().and_then(|d| d[..4].parse().ok());
         // Parse genres from JSON string stored in DB
-        let genres: Option<Vec<String>> = m.genres.as_ref().and_then(|g| {
-            serde_json::from_str(g).ok()
-        });
+        let genres: Option<Vec<String>> =
+            m.genres.as_ref().and_then(|g| serde_json::from_str(g).ok());
         MediaItem {
             id: m.id,
             title: m.title,

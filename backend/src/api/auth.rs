@@ -1,17 +1,16 @@
+use crate::AppState;
+use crate::models::User;
 use axum::{
+    Json, Router,
     extract::State,
     http::{HeaderMap, StatusCode},
     routing::{get, post},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use crate::AppState;
-use crate::models::User;
 
 #[derive(Debug, Deserialize)]
-pub struct LoginRequest {
-}
+pub struct LoginRequest {}
 
 #[derive(Debug, Deserialize)]
 pub struct JellyfinLoginRequest {
@@ -68,11 +67,15 @@ async fn login(
     if !state.config.demo_mode {
         return Err((
             StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({"error": "Demo mode is disabled. Use /auth/jellyfin to log in."})),
+            Json(
+                serde_json::json!({"error": "Demo mode is disabled. Use /auth/jellyfin to log in."}),
+            ),
         ));
     }
 
-    let (user, token) = state.auth_service.create_demo_user(&state.db)
+    let (user, token) = state
+        .auth_service
+        .create_demo_user(&state.db)
         .await
         .map_err(|e| {
             (
@@ -91,7 +94,8 @@ async fn jellyfin_login(
     State(state): State<Arc<AppState>>,
     Json(req): Json<JellyfinLoginRequest>,
 ) -> Result<Json<AuthResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let (user, token) = state.auth_service
+    let (user, token) = state
+        .auth_service
         .jellyfin_auth(&state.db, &req.url, &req.username, &req.password)
         .await
         .map_err(|e| {
@@ -121,14 +125,12 @@ async fn get_me(
             )
         })?;
 
-    let token = auth_header
-        .strip_prefix("Bearer ")
-        .ok_or_else(|| {
-            (
-                StatusCode::UNAUTHORIZED,
-                Json(serde_json::json!({"error": "Invalid Authorization format"})),
-            )
-        })?;
+    let token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Invalid Authorization format"})),
+        )
+    })?;
 
     let claims = state.auth_service.verify_token(token).map_err(|e| {
         (
@@ -137,7 +139,10 @@ async fn get_me(
         )
     })?;
 
-    let user = state.db.get_user(&claims.sub).await
+    let user = state
+        .db
+        .get_user(&claims.sub)
+        .await
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,

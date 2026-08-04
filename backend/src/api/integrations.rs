@@ -1,16 +1,16 @@
+use crate::AppState;
+use crate::api::middleware::require_auth;
+use crate::models::Integration;
+use crate::services::integrations::IntegrationService;
 use axum::{
+    Json, Router,
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     routing::{delete, get, post, put},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
-use crate::api::middleware::require_auth;
-use crate::AppState;
-use crate::models::Integration;
-use crate::services::integrations::IntegrationService;
 
 const ALLOWED_TYPES: &[&str] = &["radarr", "sonarr", "lidarr", "readarr", "mylar3"];
 
@@ -74,7 +74,12 @@ async fn list_integrations(
 ) -> Result<Json<Vec<IntegrationResponse>>, (StatusCode, Json<serde_json::Value>)> {
     require_auth(&headers, &state)?;
     let integrations = state.db.list_integrations().await.unwrap_or_default();
-    Ok(Json(integrations.into_iter().map(IntegrationResponse::from).collect()))
+    Ok(Json(
+        integrations
+            .into_iter()
+            .map(IntegrationResponse::from)
+            .collect(),
+    ))
 }
 
 async fn create_integration(
@@ -103,12 +108,16 @@ async fn create_integration(
         updated_at: chrono::Utc::now().to_rfc3339(),
     };
 
-    state.db.create_integration(&integration).await.map_err(|e| {
-        (
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": e.to_string()})),
-        )
-    })?;
+    state
+        .db
+        .create_integration(&integration)
+        .await
+        .map_err(|e| {
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": e.to_string()})),
+            )
+        })?;
 
     Ok(Json(IntegrationResponse::from(integration)))
 }
@@ -119,7 +128,10 @@ async fn get_integration(
     Path(id): Path<String>,
 ) -> Result<Json<IntegrationResponse>, (axum::http::StatusCode, Json<serde_json::Value>)> {
     require_auth(&headers, &state)?;
-    let integration = state.db.get_integration(&id).await
+    let integration = state
+        .db
+        .get_integration(&id)
+        .await
         .map_err(|e| {
             (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -143,7 +155,10 @@ async fn update_integration(
     Json(req): Json<UpdateIntegrationRequest>,
 ) -> Result<Json<IntegrationResponse>, (axum::http::StatusCode, Json<serde_json::Value>)> {
     require_auth(&headers, &state)?;
-    let mut integration = state.db.get_integration(&id).await
+    let mut integration = state
+        .db
+        .get_integration(&id)
+        .await
         .map_err(|e| {
             (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -157,18 +172,30 @@ async fn update_integration(
             )
         })?;
 
-    if let Some(name) = req.name { integration.name = name; }
-    if let Some(base_url) = req.base_url { integration.base_url = base_url; }
-    if let Some(api_key) = req.api_key { integration.api_key = api_key; }
-    if let Some(enabled) = req.enabled { integration.enabled = enabled; }
+    if let Some(name) = req.name {
+        integration.name = name;
+    }
+    if let Some(base_url) = req.base_url {
+        integration.base_url = base_url;
+    }
+    if let Some(api_key) = req.api_key {
+        integration.api_key = api_key;
+    }
+    if let Some(enabled) = req.enabled {
+        integration.enabled = enabled;
+    }
     integration.updated_at = chrono::Utc::now().to_rfc3339();
 
-    state.db.update_integration(&integration).await.map_err(|e| {
-        (
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": e.to_string()})),
-        )
-    })?;
+    state
+        .db
+        .update_integration(&integration)
+        .await
+        .map_err(|e| {
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": e.to_string()})),
+            )
+        })?;
 
     Ok(Json(IntegrationResponse::from(integration)))
 }
@@ -189,7 +216,10 @@ async fn test_integration(
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, Json<serde_json::Value>)> {
     require_auth(&headers, &state)?;
-    let integration = state.db.get_integration(&id).await
+    let integration = state
+        .db
+        .get_integration(&id)
+        .await
         .map_err(|e| {
             (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -205,6 +235,8 @@ async fn test_integration(
 
     match IntegrationService::test(&integration).await {
         Ok(msg) => Ok(Json(serde_json::json!({"status": "ok", "message": msg}))),
-        Err(e) => Ok(Json(serde_json::json!({"status": "error", "message": e.to_string()}))),
+        Err(e) => Ok(Json(
+            serde_json::json!({"status": "error", "message": e.to_string()}),
+        )),
     }
 }

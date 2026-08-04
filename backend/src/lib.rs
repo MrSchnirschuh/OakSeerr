@@ -45,8 +45,13 @@ pub async fn download_status_poller(state: Arc<AppState>) {
             }
         };
 
-        let active_requests: Vec<_> = requests.into_iter()
-            .filter(|r| r.status == "approved" && r.download_status != "imported" && r.download_status != "failed")
+        let active_requests: Vec<_> = requests
+            .into_iter()
+            .filter(|r| {
+                r.status == "approved"
+                    && r.download_status != "imported"
+                    && r.download_status != "failed"
+            })
             .collect();
 
         if active_requests.is_empty() {
@@ -71,7 +76,10 @@ pub async fn download_status_poller(state: Arc<AppState>) {
                 _ => continue,
             };
 
-            let integration = match integrations.iter().find(|i| i.integration_type == integration_type && i.enabled) {
+            let integration = match integrations
+                .iter()
+                .find(|i| i.integration_type == integration_type && i.enabled)
+            {
                 Some(i) => i,
                 None => continue,
             };
@@ -96,30 +104,43 @@ pub async fn download_status_poller(state: Arc<AppState>) {
 
             match client.get(&search_url).send().await {
                 Ok(resp) => {
-                    if let Ok(data) = resp.json::<Vec<serde_json::Value>>().await {
-                        if let Some(item) = data.first() {
-                            let has_file = item.get("hasFile").and_then(|v| v.as_bool()).unwrap_or(false);
-                            let status = item.get("status").and_then(|v| v.as_str()).unwrap_or("");
+                    if let Ok(data) = resp.json::<Vec<serde_json::Value>>().await
+                        && let Some(item) = data.first()
+                    {
+                        let has_file = item
+                            .get("hasFile")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+                        let status = item.get("status").and_then(|v| v.as_str()).unwrap_or("");
 
-                            let download_status = if has_file || status == "downloaded" {
-                                "imported"
-                            } else if status == "queued" {
-                                "queued"
-                            } else if status == "downloading" {
-                                "downloading"
-                            } else {
-                                continue;
-                            };
+                        let download_status = if has_file || status == "downloaded" {
+                            "imported"
+                        } else if status == "queued" {
+                            "queued"
+                        } else if status == "downloading" {
+                            "downloading"
+                        } else {
+                            continue;
+                        };
 
-                            if let Err(e) = services::requests::RequestService::update_download_status(
-                                &state.db,
-                                &request.id,
-                                download_status,
-                            ).await {
-                                tracing::warn!("Failed to update download status for request {}: {}", request.id, e);
-                            } else {
-                                tracing::info!("Updated download status for '{}' to {}", request.title, download_status);
-                            }
+                        if let Err(e) = services::requests::RequestService::update_download_status(
+                            &state.db,
+                            &request.id,
+                            download_status,
+                        )
+                        .await
+                        {
+                            tracing::warn!(
+                                "Failed to update download status for request {}: {}",
+                                request.id,
+                                e
+                            );
+                        } else {
+                            tracing::info!(
+                                "Updated download status for '{}' to {}",
+                                request.title,
+                                download_status
+                            );
                         }
                     }
                 }

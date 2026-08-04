@@ -1,15 +1,15 @@
+use crate::AppState;
+use crate::api::middleware::require_auth;
+use crate::models::User;
 use axum::{
+    Json, Router,
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     routing::{delete, get, post, put},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
-use crate::api::middleware::require_auth;
-use crate::AppState;
-use crate::models::User;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserResponse {
@@ -81,13 +81,17 @@ async fn create_user(
 ) -> Result<Json<UserResponse>, (StatusCode, Json<serde_json::Value>)> {
     require_auth(&headers, &state)?;
     // Check if username already exists
-    if let Some(_existing) = state.db.get_user_by_username(&req.username).await
+    if let Some(_existing) = state
+        .db
+        .get_user_by_username(&req.username)
+        .await
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"error": e.to_string()})),
             )
-        })? {
+        })?
+    {
         return Err((
             StatusCode::CONFLICT,
             Json(serde_json::json!({"error": "Username already exists"})),
@@ -122,7 +126,10 @@ async fn get_user(
     Path(id): Path<String>,
 ) -> Result<Json<UserResponse>, (StatusCode, Json<serde_json::Value>)> {
     require_auth(&headers, &state)?;
-    let user = state.db.get_user(&id).await
+    let user = state
+        .db
+        .get_user(&id)
+        .await
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -146,7 +153,10 @@ async fn update_user(
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<UserResponse>, (StatusCode, Json<serde_json::Value>)> {
     require_auth(&headers, &state)?;
-    let mut user = state.db.get_user(&id).await
+    let mut user = state
+        .db
+        .get_user(&id)
+        .await
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -160,10 +170,18 @@ async fn update_user(
             )
         })?;
 
-    if let Some(username) = req.username { user.username = username; }
-    if let Some(display_name) = req.display_name { user.display_name = display_name; }
-    if let Some(email) = req.email { user.email = Some(email); }
-    if let Some(permissions) = req.permissions { user.permissions = permissions; }
+    if let Some(username) = req.username {
+        user.username = username;
+    }
+    if let Some(display_name) = req.display_name {
+        user.display_name = display_name;
+    }
+    if let Some(email) = req.email {
+        user.email = Some(email);
+    }
+    if let Some(permissions) = req.permissions {
+        user.permissions = permissions;
+    }
     user.updated_at = chrono::Utc::now().to_rfc3339();
 
     state.db.update_user(&user).await.map_err(|e| {

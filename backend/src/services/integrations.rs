@@ -28,7 +28,8 @@ impl IntegrationService {
 
         if resp.status().is_success() {
             let data: Value = resp.json().await?;
-            let version = data.get("version")
+            let version = data
+                .get("version")
                 .or_else(|| data.get("appVersion"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown");

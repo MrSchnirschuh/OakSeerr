@@ -45,10 +45,7 @@ impl MediaService {
     }
 
     /// Get trending from external APIs (TMDB, LastFM, OpenLibrary, ComicVine)
-    pub async fn trending(
-        db: &Database,
-        media_type: Option<&str>,
-    ) -> anyhow::Result<Vec<Media>> {
+    pub async fn trending(db: &Database, media_type: Option<&str>) -> anyhow::Result<Vec<Media>> {
         let mut results = Vec::new();
 
         match media_type {
@@ -108,10 +105,7 @@ impl MediaService {
     }
 
     /// Get library contents from a specific *arr
-    pub async fn library(
-        db: &Database,
-        media_type: &str,
-    ) -> anyhow::Result<Vec<Media>> {
+    pub async fn library(db: &Database, media_type: &str) -> anyhow::Result<Vec<Media>> {
         let integration_type = match media_type {
             "movie" => "radarr",
             "tv" => "sonarr",
@@ -138,10 +132,7 @@ impl MediaService {
     }
 
     /// Get detail for a single media item (includes cast, similar items, request status)
-    pub async fn detail(
-        db: &Database,
-        media_id: &str,
-    ) -> anyhow::Result<Option<MediaDetail>> {
+    pub async fn detail(db: &Database, media_id: &str) -> anyhow::Result<Option<MediaDetail>> {
         let media = db.get_media(media_id).await?;
         let media = match media {
             Some(m) => m,
@@ -150,19 +141,23 @@ impl MediaService {
 
         // Get request status for this media
         let requests = db.list_requests().await?;
-        let request_status = requests.iter()
-            .find(|r| r.media_id == media.id)
-            .map(|r| RequestStatusInfo {
-                id: r.id.clone(),
-                status: r.status.clone(),
-                download_status: r.download_status.clone(),
-                created_at: r.created_at.clone(),
-            });
+        let request_status =
+            requests
+                .iter()
+                .find(|r| r.media_id == media.id)
+                .map(|r| RequestStatusInfo {
+                    id: r.id.clone(),
+                    status: r.status.clone(),
+                    download_status: r.download_status.clone(),
+                    created_at: r.created_at.clone(),
+                });
 
         // Try to get cast/similar from TMDB if it's a movie or TV show
         let cast = if let Some(tmdb_id) = media.tmdb_id {
             match media.media_type.as_str() {
-                "movie" | "tv" => Self::tmdb_cast(db, media.media_type.as_str(), tmdb_id).await.ok(),
+                "movie" | "tv" => Self::tmdb_cast(db, media.media_type.as_str(), tmdb_id)
+                    .await
+                    .ok(),
                 _ => None,
             }
         } else {
@@ -171,7 +166,9 @@ impl MediaService {
 
         let similar = if let Some(tmdb_id) = media.tmdb_id {
             match media.media_type.as_str() {
-                "movie" | "tv" => Self::tmdb_similar(db, media.media_type.as_str(), tmdb_id).await.ok(),
+                "movie" | "tv" => Self::tmdb_similar(db, media.media_type.as_str(), tmdb_id)
+                    .await
+                    .ok(),
                 _ => None,
             }
         } else {
@@ -188,7 +185,10 @@ impl MediaService {
 
     // === Private helpers ===
 
-    async fn search_integration(integration: &Integration, query: &str) -> anyhow::Result<Vec<Media>> {
+    async fn search_integration(
+        integration: &Integration,
+        query: &str,
+    ) -> anyhow::Result<Vec<Media>> {
         let client = reqwest::Client::new();
         let encoded = urlencoding(query);
 
@@ -213,9 +213,11 @@ impl MediaService {
         let resp = client.get(&url).send().await?;
         let data: Vec<Value> = resp.json().await?;
 
-        let items = data.into_iter().map(|item| {
-            Self::parse_integration_item(&integration.integration_type, &item)
-        }).filter_map(|r| r.ok()).collect();
+        let items = data
+            .into_iter()
+            .map(|item| Self::parse_integration_item(&integration.integration_type, &item))
+            .filter_map(|r| r.ok())
+            .collect();
 
         Ok(items)
     }
@@ -241,9 +243,11 @@ impl MediaService {
         let resp = client.get(&url).send().await?;
         let data: Vec<Value> = resp.json().await?;
 
-        let items = data.into_iter().map(|item| {
-            Self::parse_integration_item(&integration.integration_type, &item)
-        }).filter_map(|r| r.ok()).collect();
+        let items = data
+            .into_iter()
+            .map(|item| Self::parse_integration_item(&integration.integration_type, &item))
+            .filter_map(|r| r.ok())
+            .collect();
 
         Ok(items)
     }
@@ -258,7 +262,8 @@ impl MediaService {
             _ => return Err(anyhow::anyhow!("Unknown integration type")),
         };
 
-        let title = item.get("title")
+        let title = item
+            .get("title")
             .or_else(|| item.get("name"))
             .or_else(|| item.get("artistName"))
             .and_then(|v| v.as_str())
@@ -267,69 +272,142 @@ impl MediaService {
 
         let id = item.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
         let _year = item.get("year").and_then(|v| v.as_i64());
-        let overview = item.get("overview").or_else(|| item.get("description")).and_then(|v| v.as_str()).map(|s| s.to_string());
+        let overview = item
+            .get("overview")
+            .or_else(|| item.get("description"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
 
         // Build poster URL from integration
         // *arr APIs return 'posterUrl' or 'remotePoster' directly (not in 'images' array)
         // Fall back to 'images' array if direct fields are not present
         let poster_url = if let Some(url) = item.get("posterUrl").and_then(|v| v.as_str()) {
-            Some(if url.starts_with("http") { url.to_string() } else { format!("{}{}", integration_type, url) })
-        } else if let Some(url) = item.get("remotePoster").and_then(|v| v.as_str()) {
-            Some(if url.starts_with("http") { url.to_string() } else { format!("{}{}", integration_type, url) })
-        } else if let Some(url) = item.get("poster").and_then(|v| v.as_str()) {
-            Some(if url.starts_with("http") { url.to_string() } else { format!("{}{}", integration_type, url) })
-        } else if let Some(images) = item.get("images").and_then(|v| v.as_array()) {
-            images.iter().find(|img| {
-                img.get("coverType").or_else(|| img.get("type")).and_then(|v| v.as_str()) == Some("poster")
-            }).or_else(|| images.first())
-            .and_then(|img| img.get("url").and_then(|v| v.as_str()))
-            .map(|u| {
-                if u.starts_with("http") { u.to_string() }
-                else { format!("{}{}", integration_type, u) }
+            Some(if url.starts_with("http") {
+                url.to_string()
+            } else {
+                format!("{}{}", integration_type, url)
             })
+        } else if let Some(url) = item.get("remotePoster").and_then(|v| v.as_str()) {
+            Some(if url.starts_with("http") {
+                url.to_string()
+            } else {
+                format!("{}{}", integration_type, url)
+            })
+        } else if let Some(url) = item.get("poster").and_then(|v| v.as_str()) {
+            Some(if url.starts_with("http") {
+                url.to_string()
+            } else {
+                format!("{}{}", integration_type, url)
+            })
+        } else if let Some(images) = item.get("images").and_then(|v| v.as_array()) {
+            images
+                .iter()
+                .find(|img| {
+                    img.get("coverType")
+                        .or_else(|| img.get("type"))
+                        .and_then(|v| v.as_str())
+                        == Some("poster")
+                })
+                .or_else(|| images.first())
+                .and_then(|img| img.get("url").and_then(|v| v.as_str()))
+                .map(|u| {
+                    if u.starts_with("http") {
+                        u.to_string()
+                    } else {
+                        format!("{}{}", integration_type, u)
+                    }
+                })
         } else {
             None
         };
 
         let backdrop_url = if let Some(images) = item.get("images").and_then(|v| v.as_array()) {
-            images.iter().find(|img| {
-                img.get("coverType").or_else(|| img.get("type")).and_then(|v| v.as_str()) == Some("fanart")
-            }).and_then(|img| img.get("url").and_then(|v| v.as_str()))
-            .map(|u| {
-                if u.starts_with("http") { u.to_string() }
-                else { format!("{}{}", integration_type, u) }
-            })
+            images
+                .iter()
+                .find(|img| {
+                    img.get("coverType")
+                        .or_else(|| img.get("type"))
+                        .and_then(|v| v.as_str())
+                        == Some("fanart")
+                })
+                .and_then(|img| img.get("url").and_then(|v| v.as_str()))
+                .map(|u| {
+                    if u.starts_with("http") {
+                        u.to_string()
+                    } else {
+                        format!("{}{}", integration_type, u)
+                    }
+                })
         } else {
             None
         };
 
-        let genres: Option<Vec<String>> = item.get("genres").and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|g| {
-                if let Some(s) = g.as_str() { Some(s.to_string()) }
-                else if let Some(obj) = g.as_object() {
-                    obj.get("name").and_then(|n| n.as_str()).map(|s| s.to_string())
-                } else { None }
-            }).collect());
+        let genres: Option<Vec<String>> =
+            item.get("genres").and_then(|v| v.as_array()).map(|arr| {
+                arr.iter()
+                    .filter_map(|g| {
+                        if let Some(s) = g.as_str() {
+                            Some(s.to_string())
+                        } else if let Some(obj) = g.as_object() {
+                            obj.get("name")
+                                .and_then(|n| n.as_str())
+                                .map(|s| s.to_string())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            });
 
-        let season_count = item.get("seasons").and_then(|v| v.as_array()).map(|a| a.len() as i32);
-        let episode_count = item.get("episodeCount").and_then(|v| v.as_i64()).map(|v| v as i32);
-        let artist_name = item.get("artistName").and_then(|v| v.as_str()).map(|s| s.to_string());
-        let author_name = item.get("authorName").or_else(|| item.get("author")).and_then(|v| v.as_str()).map(|s| s.to_string());
+        let season_count = item
+            .get("seasons")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len() as i32);
+        let episode_count = item
+            .get("episodeCount")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32);
+        let artist_name = item
+            .get("artistName")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let author_name = item
+            .get("authorName")
+            .or_else(|| item.get("author"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
 
-        let rating = item.get("ratings").and_then(|r| r.get("value")).and_then(|v| v.as_f64())
+        let rating = item
+            .get("ratings")
+            .and_then(|r| r.get("value"))
+            .and_then(|v| v.as_f64())
             .or_else(|| item.get("rating").and_then(|v| v.as_f64()));
 
-        let release_date = item.get("releaseDate").or_else(|| item.get("release")).and_then(|v| v.as_str()).map(|s| s.to_string());
+        let release_date = item
+            .get("releaseDate")
+            .or_else(|| item.get("release"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
 
         // Serialize genres to JSON string for DB storage
-        let genres_json = genres.as_ref().map(|g| serde_json::to_string(g).unwrap_or_default());
+        let genres_json = genres
+            .as_ref()
+            .map(|g| serde_json::to_string(g).unwrap_or_default());
 
         Ok(Media {
             id: format!("{}-{}", integration_type, id),
             tmdb_id: item.get("tmdbId").and_then(|v| v.as_i64()),
             tvdb_id: item.get("tvdbId").and_then(|v| v.as_i64()),
-            musicbrainz_id: item.get("foreignArtistId").or_else(|| item.get("musicBrainzId")).and_then(|v| v.as_str()).map(|s| s.to_string()),
-            isbn: item.get("isbn").or_else(|| item.get("foreignId")).and_then(|v| v.as_str()).map(|s| s.to_string()),
+            musicbrainz_id: item
+                .get("foreignArtistId")
+                .or_else(|| item.get("musicBrainzId"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            isbn: item
+                .get("isbn")
+                .or_else(|| item.get("foreignId"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
             media_type: media_type.to_string(),
             title,
             overview,
@@ -386,12 +464,11 @@ impl MediaService {
                 urlencoding(&media.title),
             );
 
-            if let Ok(resp) = client.get(&search_url).send().await {
-                if let Ok(data) = resp.json::<Vec<Value>>().await {
-                    if !data.is_empty() {
-                        return Ok(Some("available".to_string()));
-                    }
-                }
+            if let Ok(resp) = client.get(&search_url).send().await
+                && let Ok(data) = resp.json::<Vec<Value>>().await
+                && !data.is_empty()
+            {
+                return Ok(Some("available".to_string()));
             }
         }
 
@@ -407,7 +484,9 @@ impl MediaService {
     // === External API trending ===
 
     async fn get_api_key(db: &Database, key_name: &str, default: &str) -> String {
-        SettingsService::get_api_key(db, key_name, default).await.unwrap_or_else(|_| default.to_string())
+        SettingsService::get_api_key(db, key_name, default)
+            .await
+            .unwrap_or_else(|_| default.to_string())
     }
 
     async fn tmdb_trending(db: &Database, media_type: &str) -> anyhow::Result<Vec<Media>> {
@@ -418,9 +497,11 @@ impl MediaService {
             media_type, api_key
         );
 
-        let resp = client.get(&url)
+        let resp = client
+            .get(&url)
             .header("Accept", "application/json")
-            .send().await?;
+            .send()
+            .await?;
 
         if !resp.status().is_success() {
             tracing::warn!("TMDB API returned {}", resp.status());
@@ -428,66 +509,119 @@ impl MediaService {
         }
 
         let data: Value = resp.json().await?;
-        let results = data.get("results").and_then(|r| r.as_array())
+        let results = data
+            .get("results")
+            .and_then(|r| r.as_array())
             .ok_or_else(|| anyhow::anyhow!("No results from TMDB"))?;
 
         // Genre mapping for TMDB genre IDs
         let genre_map: HashMap<i64, &str> = [
-            (28, "Action"), (12, "Adventure"), (16, "Animation"), (35, "Comedy"),
-            (80, "Crime"), (99, "Documentary"), (18, "Drama"), (10751, "Family"),
-            (14, "Fantasy"), (36, "History"), (27, "Horror"), (10402, "Music"),
-            (9648, "Mystery"), (10749, "Romance"), (878, "Sci-Fi"), (10770, "TV Movie"),
-            (53, "Thriller"), (10752, "War"), (37, "Western"),
+            (28, "Action"),
+            (12, "Adventure"),
+            (16, "Animation"),
+            (35, "Comedy"),
+            (80, "Crime"),
+            (99, "Documentary"),
+            (18, "Drama"),
+            (10751, "Family"),
+            (14, "Fantasy"),
+            (36, "History"),
+            (27, "Horror"),
+            (10402, "Music"),
+            (9648, "Mystery"),
+            (10749, "Romance"),
+            (878, "Sci-Fi"),
+            (10770, "TV Movie"),
+            (53, "Thriller"),
+            (10752, "War"),
+            (37, "Western"),
             // TV-specific
-            (10759, "Action & Adventure"), (10762, "Kids"), (10763, "News"),
-            (10764, "Reality"), (10765, "Sci-Fi & Fantasy"), (10766, "Soap"),
-            (10767, "Talk"), (10768, "War & Politics"),
-        ].iter().cloned().collect();
+            (10759, "Action & Adventure"),
+            (10762, "Kids"),
+            (10763, "News"),
+            (10764, "Reality"),
+            (10765, "Sci-Fi & Fantasy"),
+            (10766, "Soap"),
+            (10767, "Talk"),
+            (10768, "War & Politics"),
+        ]
+        .iter()
+        .cloned()
+        .collect();
 
-        let items = results.iter().map(|item| {
-            let id = item.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
-            let title = item.get("title").or_else(|| item.get("name")).and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
-            let overview = item.get("overview").and_then(|v| v.as_str()).map(|s| s.to_string());
-            let poster_path = item.get("poster_path").and_then(|v| v.as_str());
-            let backdrop_path = item.get("backdrop_path").and_then(|v| v.as_str());
-            let release_date = item.get("release_date").or_else(|| item.get("first_air_date")).and_then(|v| v.as_str()).map(|s| s.to_string());
-            let vote_average = item.get("vote_average").and_then(|v| v.as_f64());
+        let items = results
+            .iter()
+            .map(|item| {
+                let id = item.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
+                let title = item
+                    .get("title")
+                    .or_else(|| item.get("name"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Unknown")
+                    .to_string();
+                let overview = item
+                    .get("overview")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let poster_path = item.get("poster_path").and_then(|v| v.as_str());
+                let backdrop_path = item.get("backdrop_path").and_then(|v| v.as_str());
+                let release_date = item
+                    .get("release_date")
+                    .or_else(|| item.get("first_air_date"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let vote_average = item.get("vote_average").and_then(|v| v.as_f64());
 
-            let genres: Option<Vec<String>> = item.get("genre_ids").and_then(|v| v.as_array())
-                .map(|arr| arr.iter().filter_map(|g| {
-                    g.as_i64().and_then(|id| genre_map.get(&id)).map(|s| s.to_string())
-                }).collect());
+                let genres: Option<Vec<String>> =
+                    item.get("genre_ids").and_then(|v| v.as_array()).map(|arr| {
+                        arr.iter()
+                            .filter_map(|g| {
+                                g.as_i64()
+                                    .and_then(|id| genre_map.get(&id))
+                                    .map(|s| s.to_string())
+                            })
+                            .collect()
+                    });
 
-            let genres_json = genres.as_ref().map(|g| serde_json::to_string(g).unwrap_or_default());
+                let genres_json = genres
+                    .as_ref()
+                    .map(|g| serde_json::to_string(g).unwrap_or_default());
 
-            Media {
-                id: format!("tmdb-{}", id),
-                tmdb_id: Some(id),
-                tvdb_id: None,
-                musicbrainz_id: None,
-                isbn: None,
-                media_type: media_type.to_string(),
-                title,
-                overview,
-                poster_url: poster_path.map(|p| format!("https://image.tmdb.org/t/p/w500{}", p)),
-                backdrop_url: backdrop_path.map(|p| format!("https://image.tmdb.org/t/p/w1280{}", p)),
-                release_date,
-                status: "unknown".to_string(),
-                rating: vote_average,
-                genres: genres_json,
-                season_count: None,
-                episode_count: None,
-                artist_name: None,
-                author_name: None,
-                created_at: chrono::Utc::now().to_rfc3339(),
-                updated_at: chrono::Utc::now().to_rfc3339(),
-            }
-        }).collect();
+                Media {
+                    id: format!("tmdb-{}", id),
+                    tmdb_id: Some(id),
+                    tvdb_id: None,
+                    musicbrainz_id: None,
+                    isbn: None,
+                    media_type: media_type.to_string(),
+                    title,
+                    overview,
+                    poster_url: poster_path
+                        .map(|p| format!("https://image.tmdb.org/t/p/w500{}", p)),
+                    backdrop_url: backdrop_path
+                        .map(|p| format!("https://image.tmdb.org/t/p/w1280{}", p)),
+                    release_date,
+                    status: "unknown".to_string(),
+                    rating: vote_average,
+                    genres: genres_json,
+                    season_count: None,
+                    episode_count: None,
+                    artist_name: None,
+                    author_name: None,
+                    created_at: chrono::Utc::now().to_rfc3339(),
+                    updated_at: chrono::Utc::now().to_rfc3339(),
+                }
+            })
+            .collect();
 
         Ok(items)
     }
 
-    async fn tmdb_cast(db: &Database, media_type: &str, tmdb_id: i64) -> anyhow::Result<Vec<CastMember>> {
+    async fn tmdb_cast(
+        db: &Database,
+        media_type: &str,
+        tmdb_id: i64,
+    ) -> anyhow::Result<Vec<CastMember>> {
         let api_key = Self::get_api_key(db, "TMDB_API_KEY", "").await;
         let client = reqwest::Client::new();
         let url = format!(
@@ -503,21 +637,37 @@ impl MediaService {
         }
 
         let data: Value = resp.json().await?;
-        let cast = data.get("cast").and_then(|c| c.as_array())
-            .map(|arr| arr.iter().take(20).filter_map(|c| {
-                Some(CastMember {
-                    name: c.get("name").and_then(|v| v.as_str())?.to_string(),
-                    character: c.get("character").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                    profile_path: c.get("profile_path").and_then(|v| v.as_str())
-                        .map(|p| format!("https://image.tmdb.org/t/p/w185{}", p)),
-                })
-            }).collect())
+        let cast = data
+            .get("cast")
+            .and_then(|c| c.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .take(20)
+                    .filter_map(|c| {
+                        Some(CastMember {
+                            name: c.get("name").and_then(|v| v.as_str())?.to_string(),
+                            character: c
+                                .get("character")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
+                            profile_path: c
+                                .get("profile_path")
+                                .and_then(|v| v.as_str())
+                                .map(|p| format!("https://image.tmdb.org/t/p/w185{}", p)),
+                        })
+                    })
+                    .collect()
+            })
             .unwrap_or_default();
 
         Ok(cast)
     }
 
-    async fn tmdb_similar(db: &Database, media_type: &str, tmdb_id: i64) -> anyhow::Result<Vec<Media>> {
+    async fn tmdb_similar(
+        db: &Database,
+        media_type: &str,
+        tmdb_id: i64,
+    ) -> anyhow::Result<Vec<Media>> {
         let api_key = Self::get_api_key(db, "TMDB_API_KEY", "").await;
         let client = reqwest::Client::new();
         let url = format!(
@@ -533,34 +683,53 @@ impl MediaService {
         }
 
         let data: Value = resp.json().await?;
-        let results = data.get("results").and_then(|r| r.as_array())
-            .map(|arr| arr.iter().take(10).filter_map(|item| {
-                let id = item.get("id").and_then(|v| v.as_i64())?;
-                let title = item.get("title").or_else(|| item.get("name")).and_then(|v| v.as_str())?.to_string();
-                let poster_path = item.get("poster_path").and_then(|v| v.as_str());
-                Some(Media {
-                    id: format!("tmdb-{}", id),
-                    tmdb_id: Some(id),
-                    tvdb_id: None,
-                    musicbrainz_id: None,
-                    isbn: None,
-                    media_type: media_type.to_string(),
-                    title,
-                    overview: item.get("overview").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                    poster_url: poster_path.map(|p| format!("https://image.tmdb.org/t/p/w500{}", p)),
-                    backdrop_url: None,
-                    release_date: item.get("release_date").or_else(|| item.get("first_air_date")).and_then(|v| v.as_str()).map(|s| s.to_string()),
-                    status: "unknown".to_string(),
-                    rating: item.get("vote_average").and_then(|v| v.as_f64()),
-                    genres: None,
-                    season_count: None,
-                    episode_count: None,
-                    artist_name: None,
-                    author_name: None,
-                    created_at: chrono::Utc::now().to_rfc3339(),
-                    updated_at: chrono::Utc::now().to_rfc3339(),
-                })
-            }).collect())
+        let results = data
+            .get("results")
+            .and_then(|r| r.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .take(10)
+                    .filter_map(|item| {
+                        let id = item.get("id").and_then(|v| v.as_i64())?;
+                        let title = item
+                            .get("title")
+                            .or_else(|| item.get("name"))
+                            .and_then(|v| v.as_str())?
+                            .to_string();
+                        let poster_path = item.get("poster_path").and_then(|v| v.as_str());
+                        Some(Media {
+                            id: format!("tmdb-{}", id),
+                            tmdb_id: Some(id),
+                            tvdb_id: None,
+                            musicbrainz_id: None,
+                            isbn: None,
+                            media_type: media_type.to_string(),
+                            title,
+                            overview: item
+                                .get("overview")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
+                            poster_url: poster_path
+                                .map(|p| format!("https://image.tmdb.org/t/p/w500{}", p)),
+                            backdrop_url: None,
+                            release_date: item
+                                .get("release_date")
+                                .or_else(|| item.get("first_air_date"))
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
+                            status: "unknown".to_string(),
+                            rating: item.get("vote_average").and_then(|v| v.as_f64()),
+                            genres: None,
+                            season_count: None,
+                            episode_count: None,
+                            artist_name: None,
+                            author_name: None,
+                            created_at: chrono::Utc::now().to_rfc3339(),
+                            updated_at: chrono::Utc::now().to_rfc3339(),
+                        })
+                    })
+                    .collect()
+            })
             .unwrap_or_default();
 
         Ok(results)
@@ -581,44 +750,58 @@ impl MediaService {
         }
 
         let data: Value = resp.json().await?;
-        let artists = data.get("artists")
+        let artists = data
+            .get("artists")
             .and_then(|a| a.get("artist"))
             .and_then(|a| a.as_array())
             .ok_or_else(|| anyhow::anyhow!("No artists from LastFM"))?;
 
-        let items = artists.iter().map(|item| {
-            let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
-            let mbid = item.get("mbid").and_then(|v| v.as_str()).map(|s| s.to_string());
-            let image = item.get("image").and_then(|v| v.as_array())
-                .and_then(|imgs| imgs.iter().find(|img| {
-                    img.get("size").and_then(|s| s.as_str()) == Some("large")
-                }))
-                .and_then(|img| img.get("#text").and_then(|v| v.as_str()))
-                .map(|s| s.to_string());
+        let items = artists
+            .iter()
+            .map(|item| {
+                let name = item
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Unknown")
+                    .to_string();
+                let mbid = item
+                    .get("mbid")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let image = item
+                    .get("image")
+                    .and_then(|v| v.as_array())
+                    .and_then(|imgs| {
+                        imgs.iter()
+                            .find(|img| img.get("size").and_then(|s| s.as_str()) == Some("large"))
+                    })
+                    .and_then(|img| img.get("#text").and_then(|v| v.as_str()))
+                    .map(|s| s.to_string());
 
-            Media {
-                id: format!("lastfm-{}", name.to_lowercase().replace(' ', "-")),
-                tmdb_id: None,
-                tvdb_id: None,
-                musicbrainz_id: mbid,
-                isbn: None,
-                media_type: "music".to_string(),
-                title: name,
-                overview: None,
-                poster_url: image.filter(|u| !u.is_empty()),
-                backdrop_url: None,
-                release_date: None,
-                status: "unknown".to_string(),
-                rating: None,
-                genres: None,
-                season_count: None,
-                episode_count: None,
-                artist_name: None,
-                author_name: None,
-                created_at: chrono::Utc::now().to_rfc3339(),
-                updated_at: chrono::Utc::now().to_rfc3339(),
-            }
-        }).collect();
+                Media {
+                    id: format!("lastfm-{}", name.to_lowercase().replace(' ', "-")),
+                    tmdb_id: None,
+                    tvdb_id: None,
+                    musicbrainz_id: mbid,
+                    isbn: None,
+                    media_type: "music".to_string(),
+                    title: name,
+                    overview: None,
+                    poster_url: image.filter(|u| !u.is_empty()),
+                    backdrop_url: None,
+                    release_date: None,
+                    status: "unknown".to_string(),
+                    rating: None,
+                    genres: None,
+                    season_count: None,
+                    episode_count: None,
+                    artist_name: None,
+                    author_name: None,
+                    created_at: chrono::Utc::now().to_rfc3339(),
+                    updated_at: chrono::Utc::now().to_rfc3339(),
+                }
+            })
+            .collect();
 
         Ok(items)
     }
@@ -634,46 +817,63 @@ impl MediaService {
         }
 
         let data: Value = resp.json().await?;
-        let works = data.get("works").and_then(|w| w.as_array())
+        let works = data
+            .get("works")
+            .and_then(|w| w.as_array())
             .ok_or_else(|| anyhow::anyhow!("No works from OpenLibrary"))?;
 
-        let items = works.iter().map(|item| {
-            let title = item.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
-            let key = item.get("key").and_then(|v| v.as_str()).unwrap_or("/works/OL0W");
-            let id = key.trim_start_matches("/works/");
-            let cover_id = item.get("cover_id").and_then(|v| v.as_i64());
-            let authors = item.get("authors").and_then(|v| v.as_array())
-                .and_then(|arr| arr.first())
-                .and_then(|a| a.get("name").and_then(|v| v.as_str()))
-                .map(|s| s.to_string());
-            let first_publish_year = item.get("first_publish_year").and_then(|v| v.as_i64());
-
-            Media {
-                id: format!("ol-{}", id),
-                tmdb_id: None,
-                tvdb_id: None,
-                musicbrainz_id: None,
-                isbn: item.get("isbn").and_then(|v| v.as_array())
-                    .and_then(|arr| arr.first())
+        let items = works
+            .iter()
+            .map(|item| {
+                let title = item
+                    .get("title")
                     .and_then(|v| v.as_str())
-                    .map(|s| s.to_string()),
-                media_type: "book".to_string(),
-                title,
-                overview: authors.clone(),
-                poster_url: cover_id.map(|c| format!("https://covers.openlibrary.org/b/id/{}-L.jpg", c)),
-                backdrop_url: None,
-                release_date: first_publish_year.map(|y| y.to_string()),
-                status: "unknown".to_string(),
-                rating: None,
-                genres: None,
-                season_count: None,
-                episode_count: None,
-                artist_name: None,
-                author_name: authors,
-                created_at: chrono::Utc::now().to_rfc3339(),
-                updated_at: chrono::Utc::now().to_rfc3339(),
-            }
-        }).collect();
+                    .unwrap_or("Unknown")
+                    .to_string();
+                let key = item
+                    .get("key")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("/works/OL0W");
+                let id = key.trim_start_matches("/works/");
+                let cover_id = item.get("cover_id").and_then(|v| v.as_i64());
+                let authors = item
+                    .get("authors")
+                    .and_then(|v| v.as_array())
+                    .and_then(|arr| arr.first())
+                    .and_then(|a| a.get("name").and_then(|v| v.as_str()))
+                    .map(|s| s.to_string());
+                let first_publish_year = item.get("first_publish_year").and_then(|v| v.as_i64());
+
+                Media {
+                    id: format!("ol-{}", id),
+                    tmdb_id: None,
+                    tvdb_id: None,
+                    musicbrainz_id: None,
+                    isbn: item
+                        .get("isbn")
+                        .and_then(|v| v.as_array())
+                        .and_then(|arr| arr.first())
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    media_type: "book".to_string(),
+                    title,
+                    overview: authors.clone(),
+                    poster_url: cover_id
+                        .map(|c| format!("https://covers.openlibrary.org/b/id/{}-L.jpg", c)),
+                    backdrop_url: None,
+                    release_date: first_publish_year.map(|y| y.to_string()),
+                    status: "unknown".to_string(),
+                    rating: None,
+                    genres: None,
+                    season_count: None,
+                    episode_count: None,
+                    artist_name: None,
+                    author_name: authors,
+                    created_at: chrono::Utc::now().to_rfc3339(),
+                    updated_at: chrono::Utc::now().to_rfc3339(),
+                }
+            })
+            .collect();
 
         Ok(items)
     }
@@ -693,42 +893,69 @@ impl MediaService {
         }
 
         let data: Value = resp.json().await?;
-        let results = data.get("results").and_then(|r| r.as_array())
+        let results = data
+            .get("results")
+            .and_then(|r| r.as_array())
             .ok_or_else(|| anyhow::anyhow!("No results from ComicVine"))?;
 
-        let items = results.iter().map(|item| {
-            let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
-            let id = item.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
-            let image = item.get("image").and_then(|v| v.get("super_url")).and_then(|v| v.as_str()).map(|s| s.to_string());
-            let volume = item.get("volume").and_then(|v| v.get("name")).and_then(|v| v.as_str()).map(|s| s.to_string());
-            let cover_date = item.get("cover_date").and_then(|v| v.as_str()).map(|s| s.to_string());
-            let description = item.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let items = results
+            .iter()
+            .map(|item| {
+                let name = item
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Unknown")
+                    .to_string();
+                let id = item.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
+                let image = item
+                    .get("image")
+                    .and_then(|v| v.get("super_url"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let volume = item
+                    .get("volume")
+                    .and_then(|v| v.get("name"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let cover_date = item
+                    .get("cover_date")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let description = item
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
 
-            let title = if let Some(v) = volume { format!("{} #{}", v, name) } else { name };
+                let title = if let Some(v) = volume {
+                    format!("{} #{}", v, name)
+                } else {
+                    name
+                };
 
-            Media {
-                id: format!("cv-{}", id),
-                tmdb_id: None,
-                tvdb_id: None,
-                musicbrainz_id: None,
-                isbn: None,
-                media_type: "comic".to_string(),
-                title,
-                overview: description,
-                poster_url: image,
-                backdrop_url: None,
-                release_date: cover_date,
-                status: "unknown".to_string(),
-                rating: None,
-                genres: None,
-                season_count: None,
-                episode_count: None,
-                artist_name: None,
-                author_name: None,
-                created_at: chrono::Utc::now().to_rfc3339(),
-                updated_at: chrono::Utc::now().to_rfc3339(),
-            }
-        }).collect();
+                Media {
+                    id: format!("cv-{}", id),
+                    tmdb_id: None,
+                    tvdb_id: None,
+                    musicbrainz_id: None,
+                    isbn: None,
+                    media_type: "comic".to_string(),
+                    title,
+                    overview: description,
+                    poster_url: image,
+                    backdrop_url: None,
+                    release_date: cover_date,
+                    status: "unknown".to_string(),
+                    rating: None,
+                    genres: None,
+                    season_count: None,
+                    episode_count: None,
+                    artist_name: None,
+                    author_name: None,
+                    created_at: chrono::Utc::now().to_rfc3339(),
+                    updated_at: chrono::Utc::now().to_rfc3339(),
+                }
+            })
+            .collect();
 
         Ok(items)
     }

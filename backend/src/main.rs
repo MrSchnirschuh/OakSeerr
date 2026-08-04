@@ -1,13 +1,9 @@
-use axum::{
-    response::IntoResponse,
-    routing::get,
-    Json, Router,
-};
-use std::sync::Arc;
+use axum::{Json, Router, response::IntoResponse, routing::get};
 use std::path::PathBuf;
-use tower_http::cors::{CorsLayer, AllowOrigin};
-use tower_http::trace::TraceLayer;
+use std::sync::Arc;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::services::ServeDir;
+use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
 use oakseerr::{AppState, download_status_poller};
@@ -16,7 +12,10 @@ use oakseerr::{AppState, download_status_poller};
 async fn main() -> anyhow::Result<()> {
     // Initialize tracing
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "oakseerr=info,tower_http=info".into()))
+        .with_env_filter(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "oakseerr=info,tower_http=info".into()),
+        )
         .init();
 
     // Load config
@@ -46,7 +45,9 @@ async fn main() -> anyhow::Result<()> {
     let frontend_path: PathBuf = std::env::var("OAKSEERR_FRONTEND_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
-            [env!("CARGO_MANIFEST_DIR"), "..", "frontend", "out"].iter().collect()
+            [env!("CARGO_MANIFEST_DIR"), "..", "frontend", "out"]
+                .iter()
+                .collect()
         });
 
     let app = Router::new()
@@ -55,18 +56,35 @@ async fn main() -> anyhow::Result<()> {
         .nest("/api/v1/requests", oakseerr::api::requests::router())
         .nest("/api/v1/media", oakseerr::api::media::router())
         .nest("/api/v1/settings", oakseerr::api::settings::router())
-        .nest("/api/v1/integrations", oakseerr::api::integrations::router())
+        .nest(
+            "/api/v1/integrations",
+            oakseerr::api::integrations::router(),
+        )
         .nest("/api/v1/users", oakseerr::api::users::router())
-        .layer(CorsLayer::new()
-            .allow_origin(AllowOrigin::predicate(move |origin: &axum::http::HeaderValue, _request_parts: &axum::http::request::Parts| {
-                if cors_origin == "*" {
-                    return true;
-                }
-                origin.as_bytes() == cors_origin.as_bytes()
-                    || origin.as_bytes() == b"http://localhost:5055"
-            }))
-            .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::PUT, axum::http::Method::DELETE, axum::http::Method::OPTIONS])
-            .allow_headers([axum::http::header::AUTHORIZATION, axum::http::header::CONTENT_TYPE, axum::http::header::ACCEPT])
+        .layer(
+            CorsLayer::new()
+                .allow_origin(AllowOrigin::predicate(
+                    move |origin: &axum::http::HeaderValue,
+                          _request_parts: &axum::http::request::Parts| {
+                        if cors_origin == "*" {
+                            return true;
+                        }
+                        origin.as_bytes() == cors_origin.as_bytes()
+                            || origin.as_bytes() == b"http://localhost:5055"
+                    },
+                ))
+                .allow_methods([
+                    axum::http::Method::GET,
+                    axum::http::Method::POST,
+                    axum::http::Method::PUT,
+                    axum::http::Method::DELETE,
+                    axum::http::Method::OPTIONS,
+                ])
+                .allow_headers([
+                    axum::http::header::AUTHORIZATION,
+                    axum::http::header::CONTENT_TYPE,
+                    axum::http::header::ACCEPT,
+                ]),
         )
         .layer(TraceLayer::new_for_http())
         .with_state(state)

@@ -1,15 +1,15 @@
+use crate::AppState;
+use crate::api::middleware::require_auth;
+use crate::models::MediaRequest;
+use crate::services::requests::RequestService;
 use axum::{
+    Json, Router,
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     routing::{get, post},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use crate::api::middleware::require_auth;
-use crate::AppState;
-use crate::models::MediaRequest;
-use crate::services::requests::RequestService;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RequestResponse {
@@ -59,9 +59,7 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/{id}/decline", post(decline_request))
 }
 
-async fn list_requests(
-    State(state): State<Arc<AppState>>,
-) -> Json<Vec<RequestResponse>> {
+async fn list_requests(State(state): State<Arc<AppState>>) -> Json<Vec<RequestResponse>> {
     let requests = state.db.list_requests().await.unwrap_or_default();
     Json(requests.into_iter().map(RequestResponse::from).collect())
 }
@@ -96,7 +94,10 @@ async fn get_request(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<RequestResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let request = state.db.get_request(&id).await
+    let request = state
+        .db
+        .get_request(&id)
+        .await
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -119,14 +120,12 @@ async fn approve_request(
     Path(id): Path<String>,
 ) -> Result<Json<RequestResponse>, (StatusCode, Json<serde_json::Value>)> {
     require_auth(&headers, &state)?;
-    let request = RequestService::approve(&state.db, &id)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": e.to_string()})),
-            )
-        })?;
+    let request = RequestService::approve(&state.db, &id).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+    })?;
 
     Ok(Json(RequestResponse::from(request)))
 }
@@ -137,22 +136,18 @@ async fn decline_request(
     Path(id): Path<String>,
 ) -> Result<Json<RequestResponse>, (StatusCode, Json<serde_json::Value>)> {
     require_auth(&headers, &state)?;
-    let request = RequestService::decline(&state.db, &id)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": e.to_string()})),
-            )
-        })?;
+    let request = RequestService::decline(&state.db, &id).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+    })?;
 
     Ok(Json(RequestResponse::from(request)))
 }
 
 /// GET /api/v1/requests/status - returns all requests with download status
-async fn get_requests_status(
-    State(state): State<Arc<AppState>>,
-) -> Json<Vec<RequestResponse>> {
+async fn get_requests_status(State(state): State<Arc<AppState>>) -> Json<Vec<RequestResponse>> {
     let requests = RequestService::get_all_with_status(&state.db)
         .await
         .unwrap_or_default();

@@ -20,7 +20,7 @@ pub struct MediaRequest {
     pub media_type: String, // movie, tv, music, book, comic
     pub media_id: String,
     pub title: String,
-    pub status: String, // pending, approved, declined, fulfilled
+    pub status: String,          // pending, approved, declined, fulfilled
     pub download_status: String, // none, queued, downloading, imported, failed
     pub external_service_id: Option<String>,
     pub created_at: String,

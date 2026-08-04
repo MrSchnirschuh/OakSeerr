@@ -1,6 +1,6 @@
+use crate::models::{Integration, Media, MediaRequest, Settings, User};
 use sqlx::sqlite::SqlitePoolOptions;
-use sqlx::{SqlitePool, Row};
-use crate::models::{User, Media, MediaRequest, Integration, Settings};
+use sqlx::{Row, SqlitePool};
 
 pub struct Database {
     pub pool: SqlitePool,
@@ -16,9 +16,7 @@ impl Database {
     }
 
     pub async fn run_migrations(&self) -> anyhow::Result<()> {
-        sqlx::migrate!("src/db/migrations")
-            .run(&self.pool)
-            .await?;
+        sqlx::migrate!("src/db/migrations").run(&self.pool).await?;
         tracing::info!("Database migrations applied successfully");
 
         // Ensure demo user exists
@@ -46,7 +44,10 @@ impl Database {
         Ok(row)
     }
 
-    pub async fn get_user_by_jellyfin_id(&self, jellyfin_user_id: &str) -> anyhow::Result<Option<User>> {
+    pub async fn get_user_by_jellyfin_id(
+        &self,
+        jellyfin_user_id: &str,
+    ) -> anyhow::Result<Option<User>> {
         let row = sqlx::query_as::<_, User>("SELECT * FROM users WHERE jellyfin_user_id = ?")
             .bind(jellyfin_user_id)
             .fetch_optional(&self.pool)
@@ -200,17 +201,21 @@ impl Database {
 
     // === Requests ===
     pub async fn list_requests(&self) -> anyhow::Result<Vec<MediaRequest>> {
-        let rows = sqlx::query_as::<_, MediaRequest>("SELECT * FROM media_requests ORDER BY created_at DESC")
-            .fetch_all(&self.pool)
-            .await?;
+        let rows = sqlx::query_as::<_, MediaRequest>(
+            "SELECT * FROM media_requests ORDER BY created_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
         Ok(rows)
     }
 
     pub async fn list_requests_by_status(&self, status: &str) -> anyhow::Result<Vec<MediaRequest>> {
-        let rows = sqlx::query_as::<_, MediaRequest>("SELECT * FROM media_requests WHERE status = ? ORDER BY created_at DESC")
-            .bind(status)
-            .fetch_all(&self.pool)
-            .await?;
+        let rows = sqlx::query_as::<_, MediaRequest>(
+            "SELECT * FROM media_requests WHERE status = ? ORDER BY created_at DESC",
+        )
+        .bind(status)
+        .fetch_all(&self.pool)
+        .await?;
         Ok(rows)
     }
 

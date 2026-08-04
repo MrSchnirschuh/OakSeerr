@@ -1,15 +1,15 @@
+use crate::AppState;
+use crate::api::middleware::require_auth;
+use crate::services::settings::SettingsService;
 use axum::{
+    Json, Router,
     extract::State,
     http::{HeaderMap, StatusCode},
     routing::{get, put},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::api::middleware::require_auth;
-use crate::AppState;
-use crate::services::settings::SettingsService;
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateSettingsRequest {
@@ -37,7 +37,9 @@ async fn get_settings(
     headers: HeaderMap,
 ) -> Result<Json<HashMap<String, String>>, (StatusCode, Json<serde_json::Value>)> {
     require_auth(&headers, &state)?;
-    let settings = SettingsService::get_all(&state.db).await.unwrap_or_default();
+    let settings = SettingsService::get_all(&state.db)
+        .await
+        .unwrap_or_default();
     Ok(Json(settings))
 }
 
@@ -58,7 +60,9 @@ async fn update_settings(
             })?;
     }
 
-    let settings = SettingsService::get_all(&state.db).await.unwrap_or_default();
+    let settings = SettingsService::get_all(&state.db)
+        .await
+        .unwrap_or_default();
     Ok(Json(settings))
 }
 
@@ -67,13 +71,16 @@ async fn get_api_keys(
     headers: HeaderMap,
 ) -> Result<Json<ApiKeys>, (StatusCode, Json<serde_json::Value>)> {
     require_auth(&headers, &state)?;
-    let tmdb = SettingsService::get(&state.db, "TMDB_API_KEY").await
+    let tmdb = SettingsService::get(&state.db, "TMDB_API_KEY")
+        .await
         .unwrap_or(None)
         .unwrap_or_default();
-    let lastfm = SettingsService::get(&state.db, "LASTFM_API_KEY").await
+    let lastfm = SettingsService::get(&state.db, "LASTFM_API_KEY")
+        .await
         .unwrap_or(None)
         .unwrap_or_default();
-    let comicvine = SettingsService::get(&state.db, "COMICVINE_API_KEY").await
+    let comicvine = SettingsService::get(&state.db, "COMICVINE_API_KEY")
+        .await
         .unwrap_or(None)
         .unwrap_or_default();
 

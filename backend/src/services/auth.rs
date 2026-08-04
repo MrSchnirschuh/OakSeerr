@@ -1,12 +1,12 @@
 use crate::db::Database;
 use crate::models::User;
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: String,       // user id
+    pub sub: String, // user id
     pub username: String,
     pub exp: usize,
     pub iat: usize,
@@ -57,7 +57,10 @@ impl AuthService {
         password: &str,
     ) -> anyhow::Result<(User, String)> {
         let client = reqwest::Client::new();
-        let auth_url = format!("{}/Users/AuthenticateByName", jellyfin_url.trim_end_matches('/'));
+        let auth_url = format!(
+            "{}/Users/AuthenticateByName",
+            jellyfin_url.trim_end_matches('/')
+        );
 
         let auth_payload = serde_json::json!({
             "Username": username,
@@ -72,16 +75,21 @@ impl AuthService {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(anyhow::anyhow!("Jellyfin authentication failed: HTTP {}", resp.status()));
+            return Err(anyhow::anyhow!(
+                "Jellyfin authentication failed: HTTP {}",
+                resp.status()
+            ));
         }
 
         let auth_data: serde_json::Value = resp.json().await?;
-        let jellyfin_user_id = auth_data.get("User")
+        let jellyfin_user_id = auth_data
+            .get("User")
             .and_then(|u| u.get("Id"))
             .and_then(|i| i.as_str())
             .ok_or_else(|| anyhow::anyhow!("Could not parse Jellyfin user ID"))?;
 
-        let display_name = auth_data.get("User")
+        let display_name = auth_data
+            .get("User")
             .and_then(|u| u.get("Name"))
             .and_then(|n| n.as_str())
             .unwrap_or(username);
@@ -96,7 +104,11 @@ impl AuthService {
                 username: username.to_string(),
                 display_name: display_name.to_string(),
                 email: None,
-                avatar_url: Some(format!("{}/Users/{}/Images/Primary", jellyfin_url.trim_end_matches('/'), jellyfin_user_id)),
+                avatar_url: Some(format!(
+                    "{}/Users/{}/Images/Primary",
+                    jellyfin_url.trim_end_matches('/'),
+                    jellyfin_user_id
+                )),
                 jellyfin_user_id: Some(jellyfin_user_id.to_string()),
                 permissions: 100, // Admin by default for first user
                 created_at: chrono::Utc::now().to_rfc3339(),
