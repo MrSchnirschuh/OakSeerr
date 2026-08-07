@@ -1,5 +1,5 @@
 # Build stage: Rust backend
-FROM rust:1.81-slim-bookworm AS backend-builder
+FROM rust:1.96-slim-bookworm AS backend-builder
 WORKDIR /app
 COPY backend/ .
 RUN apt-get update && apt-get install -y pkg-config libsqlite3-dev && rm -rf /var/lib/apt/lists/*
