@@ -31,8 +31,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
-            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository_owner }}/oakseerr:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/oakseerr:latest
           labels: |
             org.opencontainers.image.version=${{ github.ref_name }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -63,7 +63,7 @@ jobs:
             Pull the release image:
 
             ```bash
-            docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            docker pull ghcr.io/${{ github.repository_owner }}/oakseerr:${{ github.ref_name }}
             ```
 
             ## Changelog
