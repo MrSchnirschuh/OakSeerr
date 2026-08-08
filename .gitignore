@@ -28,3 +28,6 @@ cookies.txt
 *.db-journal
 *.db-wal
 *.db-shm
+
+# graphify persistent knowledge graph output
+/graphify-out/
