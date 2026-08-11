@@ -105,6 +105,13 @@ impl Database {
         Ok(rows)
     }
 
+    pub async fn count_users(&self) -> anyhow::Result<i64> {
+        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(row.0)
+    }
+
     // === Integrations ===
     pub async fn list_integrations(&self) -> anyhow::Result<Vec<Integration>> {
         let rows = sqlx::query_as::<_, Integration>("SELECT * FROM integrations ORDER BY name")

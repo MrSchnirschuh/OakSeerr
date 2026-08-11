@@ -1,5 +1,5 @@
 use crate::AppState;
-use crate::api::middleware::require_auth;
+use crate::api::middleware::require_admin;
 use crate::models::User;
 use axum::{
     Json, Router,
@@ -69,7 +69,7 @@ async fn list_users(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<UserResponse>>, (StatusCode, Json<serde_json::Value>)> {
-    require_auth(&headers, &state)?;
+    require_admin(&headers, &state).await?;
     let users = state.db.list_users().await.unwrap_or_default();
     Ok(Json(users.into_iter().map(UserResponse::from).collect()))
 }
@@ -79,7 +79,7 @@ async fn create_user(
     headers: HeaderMap,
     Json(req): Json<CreateUserRequest>,
 ) -> Result<Json<UserResponse>, (StatusCode, Json<serde_json::Value>)> {
-    require_auth(&headers, &state)?;
+    require_admin(&headers, &state).await?;
     // Check if username already exists
     if let Some(_existing) = state
         .db
@@ -125,7 +125,7 @@ async fn get_user(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<UserResponse>, (StatusCode, Json<serde_json::Value>)> {
-    require_auth(&headers, &state)?;
+    require_admin(&headers, &state).await?;
     let user = state
         .db
         .get_user(&id)
@@ -152,7 +152,7 @@ async fn update_user(
     Path(id): Path<String>,
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<UserResponse>, (StatusCode, Json<serde_json::Value>)> {
-    require_auth(&headers, &state)?;
+    require_admin(&headers, &state).await?;
     let mut user = state
         .db
         .get_user(&id)
@@ -199,7 +199,7 @@ async fn delete_user(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    require_auth(&headers, &state)?;
+    require_admin(&headers, &state).await?;
     // Don't allow deleting the demo user
     if id == "demo-user" {
         return Err((

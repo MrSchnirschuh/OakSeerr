@@ -99,6 +99,8 @@ impl AuthService {
         let user = if let Some(u) = existing {
             u
         } else {
+            let is_first_user = db.count_users().await? == 0;
+            let permissions = if is_first_user { 100 } else { 0 };
             let new_user = User {
                 id: Uuid::new_v4().to_string(),
                 username: username.to_string(),
@@ -110,7 +112,7 @@ impl AuthService {
                     jellyfin_user_id
                 )),
                 jellyfin_user_id: Some(jellyfin_user_id.to_string()),
-                permissions: 100, // Admin by default for first user
+                permissions,
                 created_at: chrono::Utc::now().to_rfc3339(),
                 updated_at: chrono::Utc::now().to_rfc3339(),
             };

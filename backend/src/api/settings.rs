@@ -1,5 +1,5 @@
 use crate::AppState;
-use crate::api::middleware::require_auth;
+use crate::api::middleware::{require_admin, require_auth};
 use crate::services::settings::SettingsService;
 use axum::{
     Json, Router,
@@ -48,7 +48,7 @@ async fn update_settings(
     headers: HeaderMap,
     Json(req): Json<UpdateSettingsRequest>,
 ) -> Result<Json<HashMap<String, String>>, (StatusCode, Json<serde_json::Value>)> {
-    require_auth(&headers, &state)?;
+    require_admin(&headers, &state).await?;
     for (key, value) in &req.settings {
         SettingsService::set(&state.db, key, value)
             .await
@@ -70,7 +70,7 @@ async fn get_api_keys(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<ApiKeys>, (StatusCode, Json<serde_json::Value>)> {
-    require_auth(&headers, &state)?;
+    require_admin(&headers, &state).await?;
     let tmdb = SettingsService::get(&state.db, "TMDB_API_KEY")
         .await
         .unwrap_or(None)
@@ -96,7 +96,7 @@ async fn update_api_keys(
     headers: HeaderMap,
     Json(keys): Json<ApiKeys>,
 ) -> Result<Json<ApiKeys>, (StatusCode, Json<serde_json::Value>)> {
-    require_auth(&headers, &state)?;
+    require_admin(&headers, &state).await?;
     SettingsService::set(&state.db, "TMDB_API_KEY", &keys.tmdb_api_key)
         .await
         .map_err(|e| {

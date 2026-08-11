@@ -66,11 +66,7 @@ async fn main() -> anyhow::Result<()> {
                 .allow_origin(AllowOrigin::predicate(
                     move |origin: &axum::http::HeaderValue,
                           _request_parts: &axum::http::request::Parts| {
-                        if cors_origin == "*" {
-                            return true;
-                        }
                         origin.as_bytes() == cors_origin.as_bytes()
-                            || origin.as_bytes() == b"http://localhost:5055"
                     },
                 ))
                 .allow_methods([

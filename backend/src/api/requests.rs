@@ -1,5 +1,5 @@
 use crate::AppState;
-use crate::api::middleware::require_auth;
+use crate::api::middleware::{require_admin, require_auth};
 use crate::models::MediaRequest;
 use crate::services::requests::RequestService;
 use axum::{
@@ -59,9 +59,13 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/{id}/decline", post(decline_request))
 }
 
-async fn list_requests(State(state): State<Arc<AppState>>) -> Json<Vec<RequestResponse>> {
+async fn list_requests(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<RequestResponse>>, (StatusCode, Json<serde_json::Value>)> {
+    require_admin(&headers, &state).await?;
     let requests = state.db.list_requests().await.unwrap_or_default();
-    Json(requests.into_iter().map(RequestResponse::from).collect())
+    Ok(Json(requests.into_iter().map(RequestResponse::from).collect()))
 }
 
 async fn create_request(
@@ -92,8 +96,10 @@ async fn create_request(
 
 async fn get_request(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<RequestResponse>, (StatusCode, Json<serde_json::Value>)> {
+    require_admin(&headers, &state).await?;
     let request = state
         .db
         .get_request(&id)
@@ -119,7 +125,7 @@ async fn approve_request(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<RequestResponse>, (StatusCode, Json<serde_json::Value>)> {
-    require_auth(&headers, &state)?;
+    require_admin(&headers, &state).await?;
     let request = RequestService::approve(&state.db, &id).await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -135,7 +141,7 @@ async fn decline_request(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<RequestResponse>, (StatusCode, Json<serde_json::Value>)> {
-    require_auth(&headers, &state)?;
+    require_admin(&headers, &state).await?;
     let request = RequestService::decline(&state.db, &id).await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -147,9 +153,13 @@ async fn decline_request(
 }
 
 /// GET /api/v1/requests/status - returns all requests with download status
-async fn get_requests_status(State(state): State<Arc<AppState>>) -> Json<Vec<RequestResponse>> {
+async fn get_requests_status(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<RequestResponse>>, (StatusCode, Json<serde_json::Value>)> {
+    require_admin(&headers, &state).await?;
     let requests = RequestService::get_all_with_status(&state.db)
         .await
         .unwrap_or_default();
-    Json(requests.into_iter().map(RequestResponse::from).collect())
+    Ok(Json(requests.into_iter().map(RequestResponse::from).collect()))
 }

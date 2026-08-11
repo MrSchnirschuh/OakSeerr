@@ -36,7 +36,8 @@ impl Config {
                 })
                 .or_else(|_| env::var("DATABASE_URL"))
                 .unwrap_or_else(|_| "sqlite:///app/config/oakseerr.db?mode=rwc".to_string()),
-            jwt_secret: env::var("JWT_SECRET").unwrap_or_else(|_| uuid::Uuid::new_v4().to_string()),
+            jwt_secret: env::var("JWT_SECRET")
+                .map_err(|_| anyhow::anyhow!("JWT_SECRET environment variable must be set"))?,
             listen_addr,
             port,
             jellyfin_url: env::var("JELLYFIN_URL").ok(),
