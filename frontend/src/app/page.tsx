@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Search, TrendingUp, Film, Tv, Music, BookOpen, BookMarked, ListChecks } from "lucide-react";
 import MediaCard from "@/components/MediaCard";
+import type { MediaItem } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -18,8 +19,8 @@ const tabs = [
 export default function Home() {
   const [activeTab, setActiveTab] = useState("Trending");
   const [searchQuery, setSearchQuery] = useState("");
-  const [items, setItems] = useState<any[]>([]);
-  const [recentRequests, setRecentRequests] = useState<any[]>([]);
+  const [items, setItems] = useState<MediaItem[]>([]);
+  const [recentRequests, setRecentRequests] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -55,7 +56,7 @@ export default function Home() {
         } else {
           setRecentRequests([]);
         }
-      } catch (e) {
+      } catch (_e) {
         setItems([]);
         setRecentRequests([]);
       }
@@ -138,7 +139,7 @@ export default function Home() {
         </div>
       ) : (
         <div className="media-grid">
-          {items.map((item: any) => (
+          {items.map((item: MediaItem) => (
             <MediaCard key={item.id} item={item} />
           ))}
         </div>
@@ -173,7 +174,7 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentRequests.slice(0, 5).map((req: any) => (
+                  {recentRequests.slice(0, 5).map((req: MediaItem) => (
                     <tr key={req.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                       <td style={{ padding: "12px 16px", fontWeight: 500 }}>{req.title}</td>
                       <td style={{ padding: "12px 16px" }}>

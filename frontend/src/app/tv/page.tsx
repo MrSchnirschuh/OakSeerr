@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import { Search, Tv, TrendingUp, Library } from "lucide-react";
 import MediaCard from "@/components/MediaCard";
+import type { MediaItem } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export default function TvPage() {
   const [search, setSearch] = useState("");
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"trending" | "library">("trending");
 
@@ -31,7 +32,7 @@ export default function TvPage() {
         } else {
           setItems([]);
         }
-      } catch (e) {
+      } catch (_e) {
         setItems([]);
       }
       setLoading(false);
@@ -91,7 +92,7 @@ export default function TvPage() {
         </div>
       ) : (
         <div className="media-grid">
-          {items.map((show: any) => (
+          {items.map((show: MediaItem) => (
             <MediaCard key={show.id} item={show} />
           ))}
         </div>

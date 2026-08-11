@@ -8,6 +8,7 @@ import {
   ListChecks, Settings, LogOut, Menu, X, Search
 } from "lucide-react";
 import "./globals.css";
+import type { MediaItem } from "@/types";
 
 const navSections = [
   {
@@ -40,13 +41,26 @@ export default function RootLayout({
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<MediaItem[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // CSS Injection via @layer — wraps injected CSS in a layer so it can't break layout
+  const applyCssInjection = useCallback((css: string) => {
+    const old = document.getElementById("oakseerr-css-injection");
+    if (old) old.remove();
+
+    if (!css.trim()) return;
+
+    // Wrap injected CSS in a @layer user-theme so it can't override layout
+    const style = document.createElement("style");
+    style.id = "oakseerr-css-injection";
+    style.textContent = `@layer user-theme {\n${css}\n}`;
+    document.head.appendChild(style);
+  }, []);
+
   useEffect(() => {
     const saved = localStorage.getItem("oakseerr_css_injection");
     if (saved) {
@@ -59,20 +73,7 @@ export default function RootLayout({
     };
     window.addEventListener("css-injection-changed", handler);
     return () => window.removeEventListener("css-injection-changed", handler);
-  }, []);
-
-  function applyCssInjection(css: string) {
-    const old = document.getElementById("oakseerr-css-injection");
-    if (old) old.remove();
-
-    if (!css.trim()) return;
-
-    // Wrap injected CSS in a @layer user-theme so it can't override layout
-    const style = document.createElement("style");
-    style.id = "oakseerr-css-injection";
-    style.textContent = `@layer user-theme {\n${css}\n}`;
-    document.head.appendChild(style);
-  }
+  }, [applyCssInjection]);
 
   // Search with debounce
   const handleSearchInput = useCallback((value: string) => {
@@ -99,7 +100,7 @@ export default function RootLayout({
       }
       setSearchLoading(false);
     }, 300);
-  }, []);
+  }, [API_BASE]);
 
   // Close search on click outside
   useEffect(() => {
@@ -112,7 +113,7 @@ export default function RootLayout({
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  const IconComponent = ({ icon: Icon, size = 20 }: { icon: any; size?: number }) => (
+  const IconComponent = ({ icon: Icon, size = 20 }: { icon: React.ComponentType<{ size?: number; strokeWidth?: number }>; size?: number }) => (
     <Icon size={size} strokeWidth={1.5} />
   );
 
@@ -171,7 +172,7 @@ export default function RootLayout({
                     {searchResults.length === 0 ? (
                       <div className="search-dropdown-empty">No results found</div>
                     ) : (
-                      searchResults.map((item: any) => (
+                      searchResults.map((item: MediaItem) => (
                         <Link
                           key={item.id}
                           href={`/media/${item.id}`}

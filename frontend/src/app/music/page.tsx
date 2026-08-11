@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import { Search, Music, TrendingUp, Library } from "lucide-react";
 import MediaCard from "@/components/MediaCard";
+import type { MediaItem } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export default function MusicPage() {
   const [search, setSearch] = useState("");
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"trending" | "library">("trending");
 
@@ -31,7 +32,7 @@ export default function MusicPage() {
         } else {
           setItems([]);
         }
-      } catch (e) {
+      } catch (_e) {
         setItems([]);
       }
       setLoading(false);
@@ -91,7 +92,7 @@ export default function MusicPage() {
         </div>
       ) : (
         <div className="media-grid">
-          {items.map((item: any) => (
+          {items.map((item: MediaItem) => (
             <MediaCard key={item.id} item={item} />
           ))}
         </div>

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Settings, Sliders, Palette, Code, Info, Users,
   Plus, Trash2, RefreshCw, Check, X, ExternalLink, Save
 } from "lucide-react";
+import IntegrationForm, { type IntegrationFormData } from "./IntegrationForm";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -53,7 +54,10 @@ export default function SettingsPage() {
   const [editingIntegration, setEditingIntegration] = useState<Integration | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: string } | null>(null);
-  const [cssCode, setCssCode] = useState("");
+  const [cssCode, setCssCode] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("oakseerr_css_injection") || "";
+  });
   const [generalSettings, setGeneralSettings] = useState({
     appName: "OakSeerr",
     jellyfinUrl: "",
@@ -71,36 +75,47 @@ export default function SettingsPage() {
     permissions: { request: true, admin: false, manage_users: false, view_requests: true },
   });
 
-  useEffect(() => {
-    fetchIntegrations();
-    fetchUsers();
-    const saved = localStorage.getItem("oakseerr_css_injection");
-    if (saved) setCssCode(saved);
-  }, []);
-
-  const fetchIntegrations = async () => {
+  const fetchIntegrations = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/api/v1/integrations`);
       if (res.ok) {
         const data = await res.json();
         setIntegrations(Array.isArray(data) ? data : []);
       }
-    } catch (e) {}
-  };
+    } catch (_e) {}
+  }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/api/v1/users`);
       if (res.ok) {
         const data = await res.json();
         setUsers(Array.isArray(data) ? data : []);
       }
-    } catch (e) {
+    } catch (_e) {
       // Mock data for offline
       setUsers([
         { id: "1", username: "Demo User", email: "demo@example.com", role: "admin", permissions: { request: true, admin: true, manage_users: true, view_requests: true } },
       ]);
     }
+  }, []);
+
+  // Load integrations and users on mount. Wrapped in an async IIFE to satisfy
+  // the lint rule that flags direct async calls inside useEffect.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      await Promise.all([fetchIntegrations(), fetchUsers()]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchIntegrations, fetchUsers]);
+
+  const handleSaveCss = () => {
+    localStorage.setItem("oakseerr_css_injection", cssCode);
+    window.dispatchEvent(new Event("css-injection-changed"));
+    showToast("CSS injection saved and applied");
   };
 
   const showToast = (message: string, type: string = "success") => {
@@ -137,7 +152,8 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSaveIntegration = async (integration: Integration) => {
+  const handleSaveIntegration = async (data: IntegrationFormData) => {
+    const integration = data as Integration;
     try {
       const method = integration.id ? "PUT" : "POST";
       const url = integration.id
@@ -175,11 +191,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSaveCss = () => {
-    localStorage.setItem("oakseerr_css_injection", cssCode);
-    window.dispatchEvent(new Event("css-injection-changed"));
-    showToast("CSS injection saved and applied");
-  };
 
   // User management
   const handleCreateUser = async () => {
@@ -200,7 +211,7 @@ export default function SettingsPage() {
     } catch (e) {
       showToast("User created (offline)", "success");
       setShowAddUser(false);
-      setUsers([...users, { id: String(Date.now()), username: newUser.username, email: newUser.email, role: newUser.role, permissions: newUser.permissions }]);
+      setUsers(prev => [...prev, { id: String(Date.now()), username: newUser.username, email: newUser.email, role: newUser.role, permissions: newUser.permissions }]);
     }
   };
 
@@ -232,107 +243,6 @@ export default function SettingsPage() {
       showToast("Permissions updated (offline)", "success");
       setUsers(users.map(u => u.id === userId ? { ...u, permissions } : u));
     }
-  };
-
-  const IntegrationForm = ({ integration, onSave, onCancel }: {
-    integration: Partial<Integration>;
-    onSave: (i: any) => void;
-    onCancel: () => void;
-  }) => {
-    const [form, setForm] = useState({
-      name: integration.name || "",
-      integration_type: integration.integration_type || "radarr",
-      base_url: integration.base_url || "",
-      api_key: integration.api_key || "",
-      enabled: integration.enabled ?? true,
-    });
-
-    const typeInfo = integrationTypes.find(t => t.value === form.integration_type);
-
-    return (
-      <div className="card" style={{ padding: "24px", marginBottom: "16px", border: "none" }}>
-        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "20px" }}>
-          {integration.id ? `Edit ${form.name}` : "Add Integration"}
-        </h3>
-
-        <div className="form-group">
-          <label className="form-label">Service Type</label>
-          <select
-            className="input"
-            value={form.integration_type}
-            onChange={(e) => {
-              const type = e.target.value;
-              const info = integrationTypes.find(t => t.value === type);
-              setForm({ ...form, integration_type: type, name: info?.label || type });
-            }}
-            style={{ maxWidth: "400px" }}
-          >
-            {integrationTypes.map((t) => (
-              <option key={t.value} value={t.value}>{t.label} - {t.desc}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Name</label>
-          <input
-            className="input"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="My Radarr"
-            style={{ maxWidth: "400px" }}
-          />
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Base URL</label>
-          <input
-            className="input"
-            value={form.base_url}
-            onChange={(e) => setForm({ ...form, base_url: e.target.value })}
-            placeholder={`http://${typeInfo?.value}:7878`}
-            style={{ maxWidth: "400px" }}
-          />
-          <span className="form-hint">Full URL including port, e.g. http://192.168.4.40:7878</span>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">API Key</label>
-          <input
-            className="input"
-            type="password"
-            value={form.api_key}
-            onChange={(e) => setForm({ ...form, api_key: e.target.value })}
-            placeholder="Enter API key"
-            style={{ maxWidth: "400px" }}
-          />
-        </div>
-
-        <div className="form-group" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <input
-            type="checkbox"
-            id="enabled"
-            checked={form.enabled}
-            onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
-            style={{ width: "16px", height: "16px", accentColor: "var(--jf-primary)" }}
-          />
-          <label htmlFor="enabled" style={{ fontSize: "0.875rem", color: "var(--jf-text-secondary)" }}>
-            Enabled
-          </label>
-        </div>
-
-        <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
-          <button className="btn btn-primary" onClick={() => onSave({ ...integration, ...form })}>
-            <Save size={16} />
-            {integration.id ? "Update" : "Add"} Integration
-          </button>
-          <button className="btn btn-secondary" onClick={onCancel}>
-            <X size={16} />
-            Cancel
-          </button>
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -426,7 +336,7 @@ export default function SettingsPage() {
               {showAddForm && (
                 <IntegrationForm
                   integration={{}}
-                  onSave={(i) => handleSaveIntegration(i)}
+                  onSave={handleSaveIntegration}
                   onCancel={() => setShowAddForm(false)}
                 />
               )}
@@ -434,7 +344,7 @@ export default function SettingsPage() {
               {editingIntegration && (
                 <IntegrationForm
                   integration={editingIntegration}
-                  onSave={(i) => handleSaveIntegration(i)}
+                  onSave={handleSaveIntegration}
                   onCancel={() => setEditingIntegration(null)}
                 />
               )}

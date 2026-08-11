@@ -8,10 +8,11 @@ import {
   Star, Calendar, Clock, CheckCircle2, AlertCircle, XCircle,
   ChevronLeft, Send
 } from "lucide-react";
+import type { MediaItem } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
-const typeIcons: Record<string, any> = {
+const typeIcons: Record<string, React.ComponentType<{ size?: number; strokeWidth?: number; style?: React.CSSProperties }>> = {
   movie: Film,
   tv: Tv,
   music: Music,
@@ -19,7 +20,7 @@ const typeIcons: Record<string, any> = {
   comic: BookMarked,
 };
 
-const statusConfig: Record<string, { icon: any; label: string; className: string }> = {
+const statusConfig: Record<string, { icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>; label: string; className: string }> = {
   available: { icon: CheckCircle2, label: "Available", className: "badge-available" },
   requested: { icon: Clock, label: "Requested", className: "badge-primary" },
   processing: { icon: AlertCircle, label: "Processing", className: "badge-warning" },
@@ -34,18 +35,23 @@ export default function MediaDetailPageWrapper() {
   );
 }
 
+interface CastMember {
+  name: string;
+  role: string;
+  image: string | null;
+}
+
 function MediaDetailPage() {
   const searchParams = useSearchParams();
   const id = searchParams?.get("id") || "";
-  const [item, setItem] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [item, setItem] = useState<MediaItem | null>(null);
+  const [loading, setLoading] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [requested, setRequested] = useState(false);
-  const [similar, setSimilar] = useState<any[]>([]);
+  const [similar, setSimilar] = useState<MediaItem[]>([]);
 
   useEffect(() => {
     if (!id) {
-      setLoading(false);
       return;
     }
     async function fetchDetail() {
@@ -226,7 +232,7 @@ function MediaDetailPage() {
         <div style={{ marginTop: "48px" }}>
           <h2 className="section-title" style={{ marginBottom: "16px" }}>Cast</h2>
           <div className="detail-cast">
-            {item.cast.map((person: any, idx: number) => (
+            {item.cast.map((person: CastMember, idx: number) => (
               <div key={idx} className="detail-cast-item">
                 {person.image ? (
                   <img src={person.image} alt={person.name} />
@@ -247,7 +253,7 @@ function MediaDetailPage() {
         <div style={{ marginTop: "48px" }}>
           <h2 className="section-title" style={{ marginBottom: "16px" }}>Similar Items</h2>
           <div className="detail-similar">
-            {similar.map((sim: any) => (
+            {similar.map((sim: MediaItem) => (
               <Link key={sim.id} href={`/detail?id=${encodeURIComponent(sim.id)}`} className="detail-similar-item" style={{ textDecoration: "none", color: "inherit" }}>
                 {sim.poster_url ? (
                   <img src={sim.poster_url} alt={sim.title} />

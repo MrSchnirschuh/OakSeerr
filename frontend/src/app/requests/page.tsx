@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { ListChecks, CheckCircle2, Clock, XCircle, AlertCircle, Filter } from "lucide-react";
+import type { MediaItem } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
-const statusIcons: Record<string, any> = {
+const statusIcons: Record<string, React.ComponentType<{ size?: number }>> = {
   pending: Clock,
   approved: CheckCircle2,
   fulfilled: CheckCircle2,
@@ -22,7 +23,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function RequestsPage() {
-  const [requests, setRequests] = useState<any[]>([]);
+  const [requests, setRequests] = useState<MediaItem[]>([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
 
@@ -37,7 +38,7 @@ export default function RequestsPage() {
         } else {
           setRequests([]);
         }
-      } catch (e) {
+      } catch (_e) {
         setRequests([]);
       }
       setLoading(false);
@@ -97,7 +98,7 @@ export default function RequestsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((req: any) => {
+                {filtered.map((req: MediaItem) => {
                   const StatusIcon = statusIcons[req.status] || Clock;
                   return (
                     <tr key={req.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", transition: "background 0.15s" }}

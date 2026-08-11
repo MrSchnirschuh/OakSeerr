@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { MouseEvent } from "react";
 import { Film, Tv, Music, BookOpen, BookMarked, CheckCircle2, Clock, AlertCircle, XCircle } from "lucide-react";
 
 interface MediaItem {
@@ -20,7 +21,7 @@ interface MediaItem {
   authorName?: string;
 }
 
-const typeIcons: Record<string, any> = {
+const typeIcons: Record<string, React.ComponentType<{ size?: number; strokeWidth?: number; style?: React.CSSProperties }>> = {
   movie: Film,
   tv: Tv,
   music: Music,
@@ -28,7 +29,7 @@ const typeIcons: Record<string, any> = {
   comic: BookMarked,
 };
 
-const statusConfig: Record<string, { icon: any; label: string; className: string }> = {
+const statusConfig: Record<string, { icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>; label: string; className: string }> = {
   available: { icon: CheckCircle2, label: "Available", className: "badge-available" },
   requested: { icon: Clock, label: "Requested", className: "badge-primary" },
   processing: { icon: AlertCircle, label: "Processing", className: "badge-warning" },
@@ -52,9 +53,10 @@ export default function MediaCard({ item }: { item: MediaItem }) {
             src={item.poster_url}
             alt={item.title}
             loading="lazy"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-              (e.target as HTMLImageElement).parentElement!.querySelector(".media-card-poster-placeholder")!.classList.remove("hidden");
+            onError={(e: MouseEvent<HTMLImageElement>) => {
+              const target = e.currentTarget;
+              target.style.display = "none";
+              target.parentElement!.querySelector(".media-card-poster-placeholder")!.classList.remove("hidden");
             }}
           />
         ) : null}
