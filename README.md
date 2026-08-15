@@ -1,6 +1,6 @@
 # OakSeerr
 
-All-in-one media request manager for Jellyfin. Movies, TV shows, Music, Books, and Comics — unified.
+All-in-one media request manager for Jellyfin. Movies, TV shows, music, books and comics — unified.
 
 Built on the foundation of [Seerr](https://github.com/seerr-team/seerr) (MIT) with features ported from Musicseerr and extended for books and comics.
 
@@ -15,6 +15,19 @@ Built on the foundation of [Seerr](https://github.com/seerr-team/seerr) (MIT) wi
 - **Jellyfin SSO** — Single sign-on with your Jellyfin server
 - **Jellyfin Theme** — Native look & feel matching Jellyfin's dark theme
 - **Custom CSS** — Inject any CSS theme (like Abyss) for full customization
+
+## Security Model
+
+- **JWT auth** — stateless bearer tokens, verified on every request
+- **Admin middleware** — admin-only routes require a user with permission level `100`
+- **First-user-only admin** — the very first user created (via Jellyfin SSO or demo mode) is granted admin permissions automatically; subsequent users start with no permissions
+- **Strict CORS** — only the configured `CORS_ORIGIN` is allowed; credentials are never sent to wildcard origins
+
+## Stack
+
+- **Backend:** Rust (Axum), SQLite, `sqlx` migrations, `jsonwebtoken`
+- **Frontend:** Next.js 15 + React 19, Tailwind CSS
+- **Integration clients:** `reqwest` with Jellyfin, Radarr, Sonarr, Lidarr, Readarr, Mylar3, Sabnzbd
 
 ## Quick Start
 
@@ -45,7 +58,7 @@ cargo run --release
 # Frontend (separate terminal)
 cd frontend
 npm install
-npm run dev
+npm run build
 ```
 
 ## Configuration
@@ -54,9 +67,10 @@ See `.env.example` for all available options.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | `sqlite://data/oakseerr.db?mode=rwc` | SQLite database path |
+| `DATABASE_URL` | `sqlite:///app/config/oakseerr.db?mode=rwc` | SQLite database path |
 | `LISTEN_ADDR` | `0.0.0.0:5055` | Server listen address |
-| `JWT_SECRET` | auto-generated | Secret for JWT tokens |
+| `JWT_SECRET` | required | Secret for JWT tokens |
+| `CORS_ORIGIN` | `http://localhost:5055` | Allowed frontend origin |
 | `JELLYFIN_URL` | — | Jellyfin server URL (for SSO) |
 | `JELLYFIN_API_KEY` | — | Jellyfin API key |
 
