@@ -65,7 +65,9 @@ async fn list_requests(
 ) -> Result<Json<Vec<RequestResponse>>, (StatusCode, Json<serde_json::Value>)> {
     require_admin(&headers, &state).await?;
     let requests = state.db.list_requests().await.unwrap_or_default();
-    Ok(Json(requests.into_iter().map(RequestResponse::from).collect()))
+    Ok(Json(
+        requests.into_iter().map(RequestResponse::from).collect(),
+    ))
 }
 
 async fn create_request(
@@ -161,5 +163,7 @@ async fn get_requests_status(
     let requests = RequestService::get_all_with_status(&state.db)
         .await
         .unwrap_or_default();
-    Ok(Json(requests.into_iter().map(RequestResponse::from).collect()))
+    Ok(Json(
+        requests.into_iter().map(RequestResponse::from).collect(),
+    ))
 }
