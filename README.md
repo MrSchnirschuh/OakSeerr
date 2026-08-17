@@ -93,6 +93,16 @@ OakSeerr supports custom CSS injection. Add any CSS file URL in Settings to them
 Popular themes:
 - [Abyss](https://github.com/AumGupta/abyss-jellyfin) — `@import url('https://cdn.jsdelivr.net/gh/AumGupta/abyss-jellyfin@main/abyss.css');`
 
+## Development
+
+Use the `Makefile` for common tasks:
+
+```bash
+make test   # backend cargo test + frontend npm test
+make lint   # cargo clippy + npm run lint
+make format # cargo fmt + npm run format
+```
+
 ## License
 
 MIT
