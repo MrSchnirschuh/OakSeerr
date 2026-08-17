@@ -38,7 +38,7 @@ export default function RequestsPage() {
         } else {
           setRequests([]);
         }
-      } catch (_e) {
+      } catch {
         setRequests([]);
       }
       setLoading(false);

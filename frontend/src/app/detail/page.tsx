@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Film, Tv, Music, BookOpen, BookMarked,
   Star, Calendar, Clock, CheckCircle2, AlertCircle, XCircle,
@@ -67,7 +68,7 @@ function MediaDetailPage() {
           const simData = await simRes.json();
           setSimilar(Array.isArray(simData) ? simData.slice(0, 12) : []);
         }
-      } catch (e) {
+      } catch {
         setItem({
           id,
           title: "Sample Media",
@@ -99,7 +100,7 @@ function MediaDetailPage() {
         body: JSON.stringify({ media_id: id, media_type: item?.media_type }),
       });
       if (res.ok) setRequested(true);
-    } catch (e) {
+    } catch {
       setRequested(true);
     }
     setRequesting(false);
@@ -155,7 +156,7 @@ function MediaDetailPage() {
 
       <div className="detail-backdrop">
         {item.backdrop_url ? (
-          <img src={item.backdrop_url} alt="" />
+          <Image src={item.backdrop_url} alt="" width={1200} height={450} style={{ width: "100%", height: "100%", objectFit: "cover" }} unoptimized />
         ) : (
           <div style={{ width: "100%", height: "100%", background: "linear-gradient(135deg, rgba(0,164,220,0.1) 0%, rgba(170,92,195,0.05) 100%)" }} />
         )}
@@ -165,7 +166,7 @@ function MediaDetailPage() {
       <div className="detail-content">
         <div className="detail-poster">
           {item.poster_url ? (
-            <img src={item.poster_url} alt={item.title} />
+            <Image src={item.poster_url} alt={item.title} width={300} height={450} style={{ width: "100%", height: "auto", display: "block" }} unoptimized />
           ) : (
             <div style={{ aspectRatio: "2/3", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.04)" }}>
               <TypeIcon size={48} strokeWidth={1} style={{ opacity: 0.3 }} />
@@ -235,7 +236,7 @@ function MediaDetailPage() {
             {item.cast.map((person: CastMember, idx: number) => (
               <div key={idx} className="detail-cast-item">
                 {person.image ? (
-                  <img src={person.image} alt={person.name} />
+                  <Image src={person.image} alt={person.name} width={64} height={64} style={{ width: "64px", height: "64px", borderRadius: "50%" }} unoptimized />
                 ) : (
                   <div style={{ width: "64px", height: "64px", borderRadius: "50%", margin: "0 auto 6px", background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--jf-text-secondary)", fontSize: "1.2rem", fontWeight: 600 }}>
                     {person.name?.charAt(0) || "?"}
@@ -256,7 +257,7 @@ function MediaDetailPage() {
             {similar.map((sim: MediaItem) => (
               <Link key={sim.id} href={`/detail?id=${encodeURIComponent(sim.id)}`} className="detail-similar-item" style={{ textDecoration: "none", color: "inherit" }}>
                 {sim.poster_url ? (
-                  <img src={sim.poster_url} alt={sim.title} />
+                  <Image src={sim.poster_url} alt={sim.title} width={150} height={225} style={{ width: "100%", height: "auto", display: "block" }} unoptimized />
                 ) : (
                   <div style={{ aspectRatio: "2/3", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.04)" }}>
                     <Film size={24} style={{ opacity: 0.2 }} />

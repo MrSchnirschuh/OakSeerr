@@ -82,7 +82,7 @@ export default function SettingsPage() {
         const data = await res.json();
         setIntegrations(Array.isArray(data) ? data : []);
       }
-    } catch (_e) {}
+    } catch {}
   }, []);
 
   const fetchUsers = useCallback(async () => {
@@ -92,7 +92,7 @@ export default function SettingsPage() {
         const data = await res.json();
         setUsers(Array.isArray(data) ? data : []);
       }
-    } catch (_e) {
+    } catch {
       // Mock data for offline
       setUsers([
         { id: "1", username: "Demo User", email: "demo@example.com", role: "admin", permissions: { request: true, admin: true, manage_users: true, view_requests: true } },
@@ -103,13 +103,9 @@ export default function SettingsPage() {
   // Load integrations and users on mount. Wrapped in an async IIFE to satisfy
   // the lint rule that flags direct async calls inside useEffect.
   useEffect(() => {
-    let cancelled = false;
     (async () => {
       await Promise.all([fetchIntegrations(), fetchUsers()]);
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [fetchIntegrations, fetchUsers]);
 
   const handleSaveCss = () => {
@@ -132,7 +128,7 @@ export default function SettingsPage() {
       });
       if (res.ok) showToast("Settings saved");
       else showToast("Failed to save settings", "error");
-    } catch (e) {
+    } catch {
       showToast("Settings saved (offline)", "success");
     }
   };
@@ -147,7 +143,7 @@ export default function SettingsPage() {
         const err = await res.text();
         showToast(`Connection failed: ${err}`, "error");
       }
-    } catch (e) {
+    } catch {
       showToast("Test connection (offline)", "success");
     }
   };
@@ -172,7 +168,7 @@ export default function SettingsPage() {
       } else {
         showToast("Failed to save integration", "error");
       }
-    } catch (e) {
+    } catch {
       showToast("Integration saved (offline)", "success");
       setEditingIntegration(null);
       setShowAddForm(false);
@@ -186,7 +182,7 @@ export default function SettingsPage() {
         showToast("Integration removed");
         fetchIntegrations();
       }
-    } catch (e) {
+    } catch {
       showToast("Integration removed (offline)", "success");
     }
   };
@@ -208,7 +204,7 @@ export default function SettingsPage() {
       } else {
         showToast("Failed to create user", "error");
       }
-    } catch (e) {
+    } catch {
       showToast("User created (offline)", "success");
       setShowAddUser(false);
       setUsers(prev => [...prev, { id: String(Date.now()), username: newUser.username, email: newUser.email, role: newUser.role, permissions: newUser.permissions }]);
@@ -222,7 +218,7 @@ export default function SettingsPage() {
         showToast("User deleted");
         fetchUsers();
       }
-    } catch (e) {
+    } catch {
       showToast("User deleted (offline)", "success");
       setUsers(users.filter(u => u.id !== userId));
     }
@@ -239,7 +235,7 @@ export default function SettingsPage() {
         showToast("Permissions updated");
         fetchUsers();
       }
-    } catch (e) {
+    } catch {
       showToast("Permissions updated (offline)", "success");
       setUsers(users.map(u => u.id === userId ? { ...u, permissions } : u));
     }

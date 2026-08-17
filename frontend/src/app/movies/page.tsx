@@ -32,7 +32,7 @@ export default function MoviesPage() {
         } else {
           setItems([]);
         }
-      } catch (_e) {
+      } catch {
         setItems([]);
       }
       setLoading(false);

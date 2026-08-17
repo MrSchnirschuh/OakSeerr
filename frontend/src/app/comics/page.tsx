@@ -32,7 +32,7 @@ export default function ComicsPage() {
         } else {
           setItems([]);
         }
-      } catch (_e) {
+      } catch {
         setItems([]);
       }
       setLoading(false);

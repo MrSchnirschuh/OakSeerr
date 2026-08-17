@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState, useRef, useCallback } from "react";
 import {
   Home, Film, Tv, Music, BookOpen, BookMarked,
@@ -95,12 +96,12 @@ export default function RootLayout({
           setSearchResults(Array.isArray(data) ? data.slice(0, 8) : []);
           setSearchOpen(true);
         }
-      } catch (e) {
+      } catch {
         setSearchResults([]);
       }
       setSearchLoading(false);
     }, 300);
-  }, [API_BASE]);
+  }, []);
 
   // Close search on click outside
   useEffect(() => {
@@ -180,7 +181,7 @@ export default function RootLayout({
                           onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
                         >
                           {item.poster_url ? (
-                            <img src={item.poster_url} alt="" />
+                            <Image src={item.poster_url} alt="" width={36} height={54} style={{ width: "36px", height: "54px", borderRadius: "4px", flexShrink: 0 }} unoptimized />
                           ) : (
                             <div style={{ width: "36px", height: "54px", borderRadius: "4px", background: "rgba(255,255,255,0.06)", flexShrink: 0 }} />
                           )}

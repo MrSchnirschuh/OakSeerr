@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { MouseEvent } from "react";
+import Image from "next/image";
 import { Film, Tv, Music, BookOpen, BookMarked, CheckCircle2, Clock, AlertCircle, XCircle } from "lucide-react";
 
 interface MediaItem {
@@ -49,12 +49,15 @@ export default function MediaCard({ item }: { item: MediaItem }) {
     >
       <div className="media-card-poster">
         {item.poster_url ? (
-          <img
+          <Image
             src={item.poster_url}
             alt={item.title}
-            loading="lazy"
-            onError={(e: MouseEvent<HTMLImageElement>) => {
-              const target = e.currentTarget;
+            width={300}
+            height={450}
+            style={{ width: "100%", height: "auto", display: "block" }}
+            unoptimized
+            onError={(e) => {
+              const target = e.currentTarget as HTMLImageElement;
               target.style.display = "none";
               target.parentElement!.querySelector(".media-card-poster-placeholder")!.classList.remove("hidden");
             }}

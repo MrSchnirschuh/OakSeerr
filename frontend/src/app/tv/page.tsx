@@ -32,7 +32,7 @@ export default function TvPage() {
         } else {
           setItems([]);
         }
-      } catch (_e) {
+      } catch {
         setItems([]);
       }
       setLoading(false);

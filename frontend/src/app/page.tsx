@@ -56,7 +56,7 @@ export default function Home() {
         } else {
           setRecentRequests([]);
         }
-      } catch (_e) {
+      } catch {
         setItems([]);
         setRecentRequests([]);
       }
