@@ -64,7 +64,7 @@ export default function MediaCard({ item }: { item: MediaItem }) {
           />
         ) : null}
         <div className={`media-card-poster-placeholder ${item.poster_url ? "hidden" : ""}`}>
-          <TypeIcon size={48} strokeWidth={1} />
+          <TypeIcon size={48} strokeWidth={1} data-testid="media-type-icon" />
         </div>
 
         {/* Status badge with backdrop-filter + text-shadow for readability */}

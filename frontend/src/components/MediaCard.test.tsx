@@ -26,4 +26,24 @@ describe("MediaCard", () => {
     expect(screen.getByText("2024")).toBeInTheDocument();
     expect(screen.getByText("Sci-Fi")).toBeInTheDocument();
   });
+
+  it("renders poster image when poster_url is set", () => {
+    render(<MediaCard item={{ ...baseItem, poster_url: "https://example.com/poster.jpg" }} />);
+    const img = screen.getByAltText("Test Movie");
+    expect(img).toBeInTheDocument();
+    expect(img).toHaveAttribute("src", expect.stringContaining("example.com"));
+  });
+
+  it("renders placeholder when poster_url is null", () => {
+    render(<MediaCard item={baseItem} />);
+    expect(screen.getByTestId("media-type-icon")).toBeInTheDocument();
+  });
+
+  it("renders up to three genre badges", () => {
+    render(<MediaCard item={{ ...baseItem, genres: ["Action", "Adventure", "Sci-Fi", "Drama"] }} />);
+    expect(screen.getByText("Action")).toBeInTheDocument();
+    expect(screen.getByText("Adventure")).toBeInTheDocument();
+    expect(screen.getByText("Sci-Fi")).toBeInTheDocument();
+    expect(screen.queryByText("Drama")).not.toBeInTheDocument();
+  });
 });
