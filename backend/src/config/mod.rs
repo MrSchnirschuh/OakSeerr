@@ -77,5 +77,9 @@ mod tests {
         let cfg = Config::from_env().unwrap();
         assert_eq!(cfg.port, 8080);
         assert_eq!(cfg.listen_addr, "0.0.0.0:8080");
+
+        unsafe { env::set_var("PORT", "invalid"); }
+        let cfg = Config::from_env().unwrap();
+        assert_eq!(cfg.port, 5055);
     }
 }
