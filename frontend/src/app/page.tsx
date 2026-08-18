@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Search, TrendingUp, Film, Tv, Music, BookOpen, BookMarked, ListChecks } from "lucide-react";
 import MediaCard from "@/components/MediaCard";
 import type { MediaItem } from "@/types";
@@ -65,11 +66,13 @@ export default function Home() {
     fetchData();
   }, [activeTab]);
 
+  const router = useRouter();
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       const target = activeTab === "Trending" ? "movies" : activeTab.toLowerCase();
-      window.location.href = `/${target}?search=${encodeURIComponent(searchQuery)}`;
+      router.push(`/${target}?search=${encodeURIComponent(searchQuery)}`);
     }
   };
 
@@ -152,7 +155,7 @@ export default function Home() {
             <ListChecks size={20} style={{ marginRight: "8px", verticalAlign: "middle" }} />
             Recent Requests
           </h2>
-          <button className="btn btn-secondary btn-sm" onClick={() => window.location.href = "/requests"}>
+          <button className="btn btn-secondary btn-sm" onClick={() => router.push("/requests")}>
             View All
           </button>
         </div>
