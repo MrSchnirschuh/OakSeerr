@@ -148,3 +148,42 @@ impl AuthService {
         Ok((user, token))
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_user() -> User {
+        User {
+            id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
+            username: "test".to_string(),
+            display_name: "Test User".to_string(),
+            email: None,
+            avatar_url: None,
+            jellyfin_user_id: None,
+            permissions: 0,
+            created_at: chrono::Utc::now().to_rfc3339(),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+        }
+    }
+
+    #[test]
+    fn test_create_and_verify_token() {
+        let service = AuthService::new("test-secret");
+        let user = sample_user();
+        let token = service.create_token(&user).unwrap();
+        let claims = service.verify_token(&token).unwrap();
+        assert_eq!(claims.sub, user.id);
+        assert_eq!(claims.username, user.username);
+    }
+
+    #[test]
+    fn test_verify_wrong_secret_fails() {
+        let signer = AuthService::new("secret-a");
+        let verifier = AuthService::new("secret-b");
+        let user = sample_user();
+        let token = signer.create_token(&user).unwrap();
+        assert!(verifier.verify_token(&token).is_err());
+    }
+}
