@@ -151,3 +151,25 @@ pub async fn download_status_poller(state: Arc<AppState>) {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn urlencoding_keeps_unreserved_characters() {
+        assert_eq!(urlencoding("hello-World_123.~"), "hello-World_123.~");
+    }
+
+    #[test]
+    fn urlencoding_encodes_special_characters() {
+        assert_eq!(urlencoding("hello world"), "hello%20world");
+        assert_eq!(urlencoding("a+b=c"), "a%2Bb%3Dc");
+    }
+
+    #[test]
+    fn urlencoding_encodes_non_ascii() {
+        assert_eq!(urlencoding("tëst"), "t%C3%ABst");
+    }
+}
