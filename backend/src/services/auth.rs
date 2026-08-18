@@ -186,4 +186,16 @@ mod tests {
         let token = signer.create_token(&user).unwrap();
         assert!(verifier.verify_token(&token).is_err());
     }
+
+    #[test]
+    fn test_verify_malformed_token_fails() {
+        let service = AuthService::new("test-secret");
+        assert!(service.verify_token("not.a.token").is_err());
+    }
+
+    #[test]
+    fn test_verify_empty_token_fails() {
+        let service = AuthService::new("test-secret");
+        assert!(service.verify_token("").is_err());
+    }
 }
