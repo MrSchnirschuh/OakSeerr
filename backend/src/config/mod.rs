@@ -53,3 +53,29 @@ impl Config {
         })
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    #[test]
+    fn config_defaults_and_custom_port() {
+        unsafe {
+            env::set_var("JWT_SECRET", "test-secret");
+            env::remove_var("PORT");
+            env::remove_var("OAKSEERR_DB_PATH");
+            env::remove_var("DATABASE_URL");
+        }
+        let cfg = Config::from_env().unwrap();
+        assert_eq!(cfg.port, 5055);
+        assert_eq!(cfg.jwt_secret, "test-secret");
+        assert!(cfg.database_url.starts_with("sqlite:///app/config/oakseerr.db"));
+
+        unsafe { env::set_var("PORT", "8080"); }
+        let cfg = Config::from_env().unwrap();
+        assert_eq!(cfg.port, 8080);
+        assert_eq!(cfg.listen_addr, "0.0.0.0:8080");
+    }
+}
