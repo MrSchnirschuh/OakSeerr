@@ -27,7 +27,7 @@ jsonwebtoken = "9"
 uuid = { version = "1", features = ["v4", "serde"] }
 
 # HTTP client (for integrations)
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["json"] }
 
 # Time / Date
 chrono = { version = "0.4", features = ["serde"] }
