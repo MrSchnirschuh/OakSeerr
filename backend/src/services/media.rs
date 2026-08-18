@@ -1,4 +1,5 @@
 use crate::db::Database;
+use crate::urlencoding;
 use crate::models::{Integration, Media};
 use crate::services::settings::SettingsService;
 use serde_json::Value;
@@ -984,20 +985,4 @@ pub struct RequestStatusInfo {
     pub status: String,
     pub download_status: String,
     pub created_at: String,
-}
-
-fn urlencoding(s: &str) -> String {
-    let mut result = String::new();
-    for byte in s.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                result.push(byte as char);
-            }
-            b' ' => result.push_str("%20"),
-            _ => {
-                result.push_str(&format!("%{:02X}", byte));
-            }
-        }
-    }
-    result
 }
